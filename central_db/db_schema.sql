@@ -26,6 +26,9 @@ CREATE TABLE IF NOT EXISTS order_table (
     PRIMARY KEY (order_id)
 );
 
+CREATE OR REPLACE FUNCTION f_array_remove_elem1(anyarray, anyelement)
+  RETURNS anyarray LANGUAGE sql IMMUTABLE AS
+'SELECT $1[:idx-1] || $1[idx+1:] FROM array_position($1, $2) idx';
 -- INSERT INTO payment VALUES (value1, value2, value3, ...); 
 INSERT INTO payment (credit) VALUES (10); 
 INSERT INTO stock (stock, unit_price) VALUES (999, 0.99);
