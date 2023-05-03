@@ -35,7 +35,7 @@ atexit.register(close_db_connection)
 @app.post('/create/<user_id>')
 def create_order(user_id):
     sql_statement = """INSERT INTO order_table (user_id, paid, items, total_price) 
-                       VALUES (%s, %s, %s:items[], %s) RETURNING order_id;"""
+                       VALUES (%s, %s, %s::items[], %s) RETURNING order_id;"""
     item = (1, 1, 0.99)
     items_list = [item]
     central_db_cursor.execute(sql_statement, (1, True, items_list, 0.99))
