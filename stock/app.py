@@ -43,7 +43,7 @@ def create_item(price: int):
 @app.get('/find/<item_id>')
 def find_item(item_id: int):
     sql_statement = """SELECT * FROM stock WHERE item_id = %s;"""
-    central_db_cursor.execute(sql_statement, (item_id))
+    central_db_cursor.execute(sql_statement, (item_id,))
     item = central_db_cursor.fetchone()
     if item:
         return {"item_id": item[0], "stock": item[1],"unit_price": item[2]}
@@ -53,7 +53,7 @@ def find_item(item_id: int):
 @app.post('/add/<item_id>/<amount>')
 def add_stock(item_id: int, amount: int):
     sql_statement = """SELECT * FROM stock WHERE item_id = %s;"""
-    central_db_cursor.execute(sql_statement, (item_id))
+    central_db_cursor.execute(sql_statement, (item_id,))
     item = central_db_cursor.fetchone()
     if not item:
         return {"error": "Item not found"}
