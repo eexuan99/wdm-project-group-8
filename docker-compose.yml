@@ -16,6 +16,8 @@ services:
     command: gunicorn -b 0.0.0.0:5000 app:app -w 1 --timeout 10
     env_file:
       - env/order_redis.env
+    depends_on:
+      - central-db
 
   order-db:
     image: redis:latest
@@ -27,6 +29,8 @@ services:
     command: gunicorn -b 0.0.0.0:5000 app:app -w 1 --timeout 10
     env_file:
       - env/stock_redis.env
+    depends_on:
+      - central-db
 
   stock-db:
     image: redis:latest
@@ -38,7 +42,13 @@ services:
     command: gunicorn -b 0.0.0.0:5000 app:app -w 1 --timeout 10
     env_file:
       - env/payment_redis.env
-
+    depends_on:
+      - central-db
+      
   payment-db:
     image: redis:latest
     command: redis-server --requirepass redis --maxmemory 512mb
+
+  central-db:
+    build: ./central_db
+    image: central_db:latest
