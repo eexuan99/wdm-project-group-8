@@ -6,7 +6,7 @@ import redis
 import psycopg2
 
 
-gateway_url = os.environ['GATEWAY_URL']
+# gateway_url = os.environ['GATEWAY_URL']
 
 app = Flask("order-service")
 
