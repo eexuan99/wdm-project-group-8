@@ -149,3 +149,45 @@ def find_order(order_id):
 @app.post('/checkout/<order_id>')
 def checkout(order_id):
     pass
+#    sql_statement = """ SELECT user, paid, items, total_price
+#                        FROM order_table
+#                        WHERE order_id = %s; """
+#    
+#    central_db_cursor.execute(sql_statement, (order_id))
+#    userId, paid, items, amnt = central_db_cursor.fetchone()
+#    
+#    if paid:
+#        return {"error": "order already paid"}, 400
+#    
+#    payment =  threading.Thread(target= callPay, args=(order_id, userId, amnt))
+#    payment.start()
+#    
+#    stoks = []
+#    for item in items:
+#        stoks.append(threading.Thread(target= removeFromStock, args=(order_id, userId, amnt)))
+#
+#    sql_statement = """ UPDATE order_table
+#                        SET paid=True
+#                        WHERE order_id=%s;"""
+#    
+#
+#def callPay(order_id, userId, amount):
+#    response = requests.post(requests.root_path + f'/payment/pay/{userId}/{order_id}/{amount}')
+#    result = response.json()
+#    # to do: throw error if things did not go to plan
+#
+#def callPay(order_id, userId, amount):
+#    response = requests.post(requests.root_path + f'/payment/pay/{userId}/{order_id}/{amount}')
+#    result = response.json()
+#    # to do: throw error if things did not go to plan
+#
+#def removeFromStock(item_id, amount):
+#    response = requests.post(requests.root_path + f'/stock/subtract/{item_id}/{amount}')
+#    result = response.json()
+#    # to do: throw error if things did not go to plan
+#
+#def removeFromStock(item_id, amount):
+#    response = requests.post(requests.root_path + f'/stock/subtract/{item_id}/{amount}')
+#    result = response.json()
+#    # to do: throw error if things did not go to plan
+#
