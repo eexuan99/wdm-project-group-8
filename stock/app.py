@@ -35,7 +35,7 @@ atexit.register(close_db_connection)
 def create_item(price: int): 
     sql_statement = """INSERT INTO stock (stock, unit_price) 
                        VALUES (%s, %s) RETURNING item_id;"""
-    central_db_cursor.execute(sql_statement, (1, price))
+    central_db_cursor.execute(sql_statement, (0, price))
     item_id_of_new_row = central_db_cursor.fetchone()[0]
     central_db_conn.commit()
     return {"item_id": item_id_of_new_row}
