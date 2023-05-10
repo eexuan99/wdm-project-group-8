@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: stock
-          image: stock:latest
+          image: bryanyhe/wsdm:stock
           resources:
             limits:
               memory: "1Gi"
@@ -48,3 +48,13 @@ spec:
               value: "redis"
             - name: REDIS_DB
               value: "0"
+            - name: POSTGRES_HOST
+              value: central-db
+            - name: POSTGRES_PASSWORD
+              value: "secret"
+            - name: POSTGRES_USER
+              value: "username"
+            - name: POSTGRES_DB
+              value: "database"
+            - name: POSTGRES_PORT
+              value: '5432'
