@@ -5,7 +5,6 @@ from flask import Flask
 import redis
 import psycopg2
 
-# gateway_url = os.environ['GATEWAY_URL']
 
 app = Flask("stock-service")
 

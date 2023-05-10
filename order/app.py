@@ -1,11 +1,11 @@
 import os
 import atexit
-import threading
+# import threading
 
 from flask import Flask
 import redis
 import psycopg2
-import requests
+# import requests
 
 
 # gateway_url = os.environ['GATEWAY_URL']
