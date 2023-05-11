@@ -4,6 +4,7 @@ import redis
 import psycopg2
 from flask import Flask
 
+
 app = Flask("payment-service")
 
 db: redis.Redis = redis.Redis(host=os.environ['REDIS_HOST'],

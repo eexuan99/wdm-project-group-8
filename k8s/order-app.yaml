@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: order
-          image: order:latest
+          image: bryanyhe/wsdm:order
           resources:
             limits:
               memory: "1Gi"
@@ -52,3 +52,18 @@ spec:
               value: "redis"
             - name: REDIS_DB
               value: "0"
+            - name: POSTGRES_HOST
+              value: central-db
+            - name: POSTGRES_PASSWORD
+              value: "secret"
+            - name: POSTGRES_USER
+              value: "username"
+            - name: POSTGRES_DB
+              value: "database"
+            - name: POSTGRES_PORT
+              value: '5432'
+# POSTGRES_HOST=central-db
+# POSTGRES_PASSWORD=secret
+# POSTGRES_USER=username
+# POSTGRES_DB=database
+# POSTGRES_PORT=5432
