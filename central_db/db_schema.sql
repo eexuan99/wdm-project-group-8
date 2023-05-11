@@ -1,19 +1,19 @@
 CREATE TYPE items AS (
     item_id int,
     amount int,
-    unit_price NUMERIC(255, 2)
+    unit_price int
 );
 
 CREATE TABLE IF NOT EXISTS payment (
     user_id SERIAL,
-    credit NUMERIC(255, 2) CHECK (credit >= 0), 
+    credit int CHECK (credit >= 0), 
     PRIMARY KEY (user_id)
 );
 
 CREATE TABLE IF NOT EXISTS stock (
     item_id SERIAL,
     stock int NOT NULL, 
-    unit_price NUMERIC(255, 2) CHECK (unit_price >= 0), 
+    unit_price int CHECK (unit_price >= 0), 
     PRIMARY KEY (item_id)
 );
 
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS order_table (
     user_id int NOT NULL REFERENCES payment, 
     paid boolean NOT NULL,
     items items[] NOT NULL, 
-    total_price NUMERIC(255, 2) CHECK (total_price >= 0), 
+    total_price int CHECK (total_price >= 0), 
     PRIMARY KEY (order_id)
 );
 
