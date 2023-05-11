@@ -27,7 +27,8 @@ spec:
     spec:
       containers:
         - name: order
-          image: bryanyhe/wsdm:order
+          image: order:latest
+          imagePullPolicy: Never
           resources:
             limits:
               memory: "1Gi"
