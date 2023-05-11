@@ -27,7 +27,8 @@ spec:
     spec:
       containers:
         - name: stock
-          image: bryanyhe/wsdm:stock
+          image: stock:latest
+          imagePullPolicy: Never
           resources:
             limits:
               memory: "1Gi"
