@@ -1,7 +1,8 @@
 # Web-scale Data Management Project Template
 
-Basic project structure with Python's Flask and Redis. 
-**You are free to use any web framework in any language and any database you like for this project.**
+###
+To deploy the services in a kuberneters cluster using minikube, follow the instructions in the `deploy-charts-and-start-minikube.sh` file.
+
 
 ### Project structure
 
