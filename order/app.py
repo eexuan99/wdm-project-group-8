@@ -4,6 +4,7 @@ import redis
 import psycopg2
 import re
 from flask import Flask
+from psycopg2 import sql
 
 app = Flask("order-service")
 
@@ -69,6 +70,10 @@ def add_item(order_id, item_id):
         if not order:
             return {"error": "Order not found"}, 400
 
+        # Optional: this db access can be removed for making this app faster, 
+        # the `update_order_items_query_add` already searches for the price
+        # NOTE however that removing this will cause the error code of 400 to not be returned
+        # Prof Asterios said that was ok though
         # Check if item exists and retrieve its price
         sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
         central_db_cursor.execute(sql_statement, (item_id,))
@@ -76,65 +81,160 @@ def add_item(order_id, item_id):
         if not item:
             return {"error": "Item not found"}, 400
 
-        price = item[0]
-
+        # price = item[0]
+        update_order_items_query_add = sql.SQL("""
+            UPDATE order_table  
+            SET items = (
+                SELECT CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM UNNEST(items) AS item
+                        WHERE item.item_id = %s
+                    )
+                    THEN array_agg(
+                        CASE
+                            WHEN item.item_id = %s THEN ROW(item.item_id, item.amount + 1, item.unit_price)::items
+                            ELSE item
+                        END
+                    )
+                    ELSE CASE
+                        WHEN (SELECT COUNT(*) FROM stock WHERE item_id = %s) > 0 THEN
+                            array_agg(item) || (
+                                SELECT (%s, 1, unit_price)::items
+                                FROM stock
+                                WHERE item_id = %s
+                            )
+                        ELSE
+                            array_agg(item)
+                        END
+                END
+                FROM UNNEST(items) AS item
+            )
+            WHERE order_id = %s;
+        """)
+        
         # Add item to order's items and update total price
-        sql_statement = """ UPDATE order_table
-                            SET items = items || ROW(%s, 1, %s)::items, total_price = total_price + %s
-                            WHERE order_id = %s; """
-        central_db_cursor.execute(sql_statement, (item_id, price, price, order_id))
-
+        update_order_total_price_query = sql.SQL("""
+                UPDATE order_table
+                SET total_price = (
+                    SELECT SUM((item.amount * item.unit_price))
+                    FROM UNNEST(items) AS item
+                )
+                WHERE order_id = %s;
+            """)
+        
+        central_db_cursor.execute(update_order_items_query_add, (item_id, item_id, item_id, item_id, item_id, order_id))
+        central_db_cursor.execute(update_order_total_price_query, (order_id,))
         central_db_conn.commit()
+        
+        # sql_statement = """ UPDATE order_table
+        #                     SET items = items || ROW(%s, 1, %s)::items, total_price = total_price + %s
+        #                     WHERE order_id = %s; """
+        # central_db_cursor.execute(sql_statement, (item_id, price, price, order_id))
+
+        # central_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
-        return {"error": "Something went wrong during checkout"}, 500
+        return {"error": "Something went wrong during adding an item"}, 500
     
     return {"success": f"Added item {item_id} to order {order_id}"}, 200
 
 
 @app.delete('/removeItem/<order_id>/<item_id>')
 def remove_item(order_id, item_id):
-    # Fetch the items array from the order
-    central_db_cursor.execute("SELECT items FROM order_table WHERE order_id = %s", (order_id,))
-    items = central_db_cursor.fetchone()[0]
+    # check if order exists
+            # Check if order exists
+    try:        
+        sql_statement = """SELECT * FROM order_table WHERE order_id = %s;"""
+        central_db_cursor.execute(sql_statement, (order_id,))
+        order = central_db_cursor.fetchone()
+        if not order:
+            return {"error": "Order not found"}, 400
 
-    # Find the item in the array
-    item_index = None
-    for index, item in enumerate(parse_items(items)):
-        if int(item[0]) == int(item_id):
-            item_index = index
-            break
+        # This step is OPTIONAL we can remove it to speed things up since db access is slow and expensive: 
+        # Check if item exists and retrieve its price
+        sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
+        central_db_cursor.execute(sql_statement, (item_id,))
+        item = central_db_cursor.fetchone()
+        if not item:
+            return {"error": "Item with this item_id does not exist in stock table"}, 400
+        
+        # NOTE:TODO we do not yet check whether 
+        # an item exists in the items[] array / shopping cart when we delete it
 
-    if item_index is None:
-        return {"error": "Item not in order"}, 400  
+        update_order_items_query_remove = sql.SQL("""
+            UPDATE order_table
+            SET items = (
+                SELECT array_remove(
+                    array_agg(
+                        CASE
+                            WHEN item.item_id = %s AND item.amount > 1 THEN ROW(item.item_id, item.amount - 1, item.unit_price)::items
+                            WHEN item.item_id = %s AND item.amount = 1 THEN NULL
+                            ELSE item
+                        END
+                    ),
+                    NULL
+                )
+                FROM UNNEST(items) AS item
+            )
+            WHERE order_id = %s;
+        """)
 
-    # Get the amount and unit_price of the item
-    _, amount, unit_price = parse_items(items)[item_index]
-
-    try:
-        if amount > 1:
-            # If the item's amount is more than 1, decrement the amount
-            sql_statement = """ UPDATE order_table 
-                                SET items = items[:item_index] || items[item_index + 1:] 
-                                WHERE order_id = %s; """
-            central_db_cursor.execute(sql_statement, (order_id,))
-        else:
-            # If the item's amount is 1, remove the item from the array
-            sql_statement = """ UPDATE order_table 
-                                SET items = array_remove(items, ROW(%s, 1, %s)::items) 
-                                WHERE order_id = %s; """
-            central_db_cursor.execute(sql_statement, (item_id, unit_price, order_id,))
-
-        # Subtract the item's unit_price from the order's total_price
-        sql_statement = """ UPDATE order_table 
-                            SET total_price = total_price - %s 
-                            WHERE order_id = %s; """
-        central_db_cursor.execute(sql_statement, (unit_price, order_id,))
-
+        # Add item to order's items and update total price
+        update_order_total_price_query = sql.SQL("""
+                UPDATE order_table
+                SET total_price = (
+                    SELECT SUM((item.amount * item.unit_price))
+                    FROM UNNEST(items) AS item
+                )
+                WHERE order_id = %s;
+            """)
+        central_db_cursor.execute(update_order_items_query_remove, (item_id, item_id, order_id))
+        central_db_cursor.execute(update_order_total_price_query, (order_id,))
         central_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
         return {"error": "Failed to remove item from order"}, 400
+
+    # # Fetch the items array from the order
+    # central_db_cursor.execute("SELECT items FROM order_table WHERE order_id = %s", (order_id,))
+    # items = central_db_cursor.fetchone()[0]
+
+    # # Find the item in the array
+    # item_index = None
+    # for index, item in enumerate(parse_items(items)):
+    #     if int(item[0]) == int(item_id):
+    #         item_index = index
+    #         break
+
+    # if item_index is None:
+    #     return {"error": "Item not in order"}, 400  
+    # # Get the amount and unit_price of the item
+    # _, amount, unit_price = parse_items(items)[item_index]
+
+    # try:
+    #     if amount > 1:
+    #         # If the item's amount is more than 1, decrement the amount
+    #         sql_statement = """ UPDATE order_table 
+    #                             SET items = items[:item_index] || items[item_index + 1:] 
+    #                             WHERE order_id = %s; """
+    #         central_db_cursor.execute(sql_statement, (order_id,))
+    #     else:
+    #         # If the item's amount is 1, remove the item from the array
+    #         sql_statement = """ UPDATE order_table 
+    #                             SET items = array_remove(items, ROW(%s, 1, %s)::items) 
+    #                             WHERE order_id = %s; """
+    #         central_db_cursor.execute(sql_statement, (item_id, unit_price, order_id,))
+
+    #     # Subtract the item's unit_price from the order's total_price
+    #     sql_statement = """ UPDATE order_table 
+    #                         SET total_price = total_price - %s 
+    #                         WHERE order_id = %s; """
+    #     central_db_cursor.execute(sql_statement, (unit_price, order_id,))
+
+    #     central_db_conn.commit()
+
+
 
     return {"success": f"Removed item {item_id} from order {order_id}"}, 200
 
