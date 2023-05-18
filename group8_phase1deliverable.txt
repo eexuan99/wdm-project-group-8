@@ -1,0 +1,9 @@
+link to repo: https://github.com/eexuan99/wdm-project-group-8/tree/phase1
+
+the steps to deploy the project using minikube and helm are in the file deploy-charts-and-start-minikube.sh
+
+Contributions for the phase 1:
+- Bryan edited the scripts and deployed the project and setup the Postgres database
+- Nicky worked on the transactional protocol (stock service), debugged all three services 
+- Ee Xuan worked on the transactional protocol (payment service)
+- Pierluigi worked on the transactional protocol (order service)
