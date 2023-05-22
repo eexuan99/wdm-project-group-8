@@ -51,7 +51,7 @@ def remove_order(order_id):
     sql_statement = """ DELETE FROM order_table
                         WHERE order_id=%s; """
     try:
-        central_db_cursor.execute(sql_statement, (order_id))
+        central_db_cursor.execute(sql_statement, (order_id,))
         central_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
@@ -196,46 +196,6 @@ def remove_item(order_id, item_id):
         print(error)
         return {"error": "Failed to remove item from order"}, 400
 
-    # # Fetch the items array from the order
-    # central_db_cursor.execute("SELECT items FROM order_table WHERE order_id = %s", (order_id,))
-    # items = central_db_cursor.fetchone()[0]
-
-    # # Find the item in the array
-    # item_index = None
-    # for index, item in enumerate(parse_items(items)):
-    #     if int(item[0]) == int(item_id):
-    #         item_index = index
-    #         break
-
-    # if item_index is None:
-    #     return {"error": "Item not in order"}, 400  
-    # # Get the amount and unit_price of the item
-    # _, amount, unit_price = parse_items(items)[item_index]
-
-    # try:
-    #     if amount > 1:
-    #         # If the item's amount is more than 1, decrement the amount
-    #         sql_statement = """ UPDATE order_table 
-    #                             SET items = items[:item_index] || items[item_index + 1:] 
-    #                             WHERE order_id = %s; """
-    #         central_db_cursor.execute(sql_statement, (order_id,))
-    #     else:
-    #         # If the item's amount is 1, remove the item from the array
-    #         sql_statement = """ UPDATE order_table 
-    #                             SET items = array_remove(items, ROW(%s, 1, %s)::items) 
-    #                             WHERE order_id = %s; """
-    #         central_db_cursor.execute(sql_statement, (item_id, unit_price, order_id,))
-
-    #     # Subtract the item's unit_price from the order's total_price
-    #     sql_statement = """ UPDATE order_table 
-    #                         SET total_price = total_price - %s 
-    #                         WHERE order_id = %s; """
-    #     central_db_cursor.execute(sql_statement, (unit_price, order_id,))
-
-    #     central_db_conn.commit()
-
-
-
     return {"success": f"Removed item {item_id} from order {order_id}"}, 200
 
 
@@ -243,7 +203,8 @@ def remove_item(order_id, item_id):
 def find_order(order_id):
     try:
         sql_statement = """SELECT * FROM order_table WHERE order_id = %s;"""
-        central_db_cursor.execute(sql_statement, (order_id))
+        print(type(order_id))
+        central_db_cursor.execute(sql_statement, (order_id,))
         order = central_db_cursor.fetchone()
         if not order:
             return {"error": "order not found"}, 400
