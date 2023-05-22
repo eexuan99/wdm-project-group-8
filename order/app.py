@@ -184,7 +184,7 @@ def remove_item(order_id, item_id):
         update_order_total_price_query = sql.SQL("""
                 UPDATE order_table
                 SET total_price = (
-                    SELECT SUM((item.amount * item.unit_price))
+                    SELECT CASE WHEN array_length(items, 1) IS NULL THEN 0 ELSE SUM((item.amount * item.unit_price)) END
                     FROM UNNEST(items) AS item
                 )
                 WHERE order_id = %s;
