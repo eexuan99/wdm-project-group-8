@@ -35,7 +35,7 @@ services:
     env_file:
       - env/payment_redis.env
     depends_on:
-      - central-db
+      - payment-db
 
   order-db:
     # image: redis:latest
@@ -50,12 +50,14 @@ services:
     image: stock-db:latest
 
   payment-db:
-    image: redis:latest
-    command: redis-server --requirepass redis --maxmemory 512mb
+    # image: redis:latest
+    # command: redis-server --requirepass redis --maxmemory 512mb
+    build: ./payment/payment_db
+    image: payment:latest
 
-  central-db:
-    build: ./central_db
-    image: central_db:latest
+  # central-db:
+  #   build: ./central_db
+  #   image: central_db:latest
 
   pgadmin:
     container_name: pgadmin4_container
