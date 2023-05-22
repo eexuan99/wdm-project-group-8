@@ -4,3 +4,10 @@ CREATE TABLE IF NOT EXISTS stock (
     unit_price int NOT NULL CHECK (unit_price >= 0), 
     PRIMARY KEY (item_id)
 );
+
+CREATE TABLE IF NOT EXISTS messages (
+    order_id int,
+    transaction_number int,
+    sign char(3),
+    PRIMARY KEY (order_id, transaction_number, sign)
+);
