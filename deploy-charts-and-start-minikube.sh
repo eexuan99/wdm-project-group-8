@@ -12,7 +12,12 @@ minikube addons enable ingress
 # set up the postgres db before the 3 service, or else they wont connect to the db
 helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo update
-helm install my-postgresql -f helm-config/postgresql-helm-values.yaml bitnami/postgresql
+
+# helm install my-postgresql -f helm-config/postgresql-helm-values.yaml bitnami/postgresql
+
+helm install payment-db -f helm-config/payment_db.yaml bitnami/postgresql
+helm install stock-db -f helm-config/stock_db.yaml bitnami/postgresql
+helm install order-db -f helm-config/order_db.yaml bitnami/postgresql
 
 # move images to minikube virtual machine
 minikube image load order:latest

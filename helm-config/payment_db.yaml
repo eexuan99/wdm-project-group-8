@@ -1,0 +1,14 @@
+fullnameOverride: payment-db
+
+auth:
+  username: "username"
+  password: "secret"
+  database: "database"
+
+primary:
+  initdb:
+    scripts: 
+      db-schema.sql: |-
+        CREATE TABLE IF NOT EXISTS payment (user_id SERIAL, credit int NOT NULL CHECK (credit >= 0), PRIMARY KEY (user_id));
+    user: "username"
+    password: "secret"
