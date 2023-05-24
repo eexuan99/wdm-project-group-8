@@ -90,7 +90,7 @@ for message in consumer:
 
     if ok and tr_type == 'pay':
         producer.send(
-                    'ops',
+                    'outcomes',
                     key = {
                         'order_id': order_id,
                         'tr_num': tr_num
@@ -104,7 +104,7 @@ for message in consumer:
                 )
     elif tr_type == 'pay':
         producer.send(
-                'ops',
+                'outcomes',
                 key = {
                     'order_id': order_id,
                     'tr_num': tr_num

@@ -26,13 +26,13 @@ producer = KafkaProducer(
 consumer = KafkaConsumer(
     #client_id = get it from k8s?,
     # boostrap_servers = ?,
-    group_id = 'pay_consumer',
+    group_id = 'stock_consumer',
     value_deserializer=lambda v: json.loads(v.decode('ascii')),
     key_deserializer=lambda v: json.loads(v.decode('ascii')),
     auto_offset_reset='earliest',
 )
 
-consumer.subscribe(topics=['payment'])
+consumer.subscribe(topics=['stock'])
 
 last_offsets = {}
 
@@ -92,7 +92,7 @@ for message in consumer:
 
     if ok and tr_type == 'sub':
         producer.send(
-            'ops',
+            'outcomes',
             key = {
                 'order_id': order_id,
                 'tr_num': tr_num
@@ -105,7 +105,7 @@ for message in consumer:
         )
     elif tr_type == 'sub':
         producer.send(
-            'ops',
+            'outcomes',
             key = {
                 'order_id': order_id,
                 'tr_num': tr_num
