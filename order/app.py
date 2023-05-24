@@ -13,72 +13,32 @@ db: redis.Redis = redis.Redis(host=os.environ['REDIS_HOST'],
                               password=os.environ['REDIS_PASSWORD'],
                               db=int(os.environ['REDIS_DB']))
 
-order_db_conn = psycopg2.connect(
-    host=os.environ['POSTGRES_HOST_ORDER'],
+central_db_conn = psycopg2.connect(
+    host=os.environ['POSTGRES_HOST'],
     database=os.environ['POSTGRES_DB'],
     user=os.environ['POSTGRES_USER'],
     password=os.environ['POSTGRES_PASSWORD'],
     port=os.environ['POSTGRES_PORT'])
 
-order_db_cursor = order_db_conn.cursor()
-
-payment_db_conn = psycopg2.connect(
-    host=os.environ['POSTGRES_HOST_PAYMENT'],
-    database=os.environ['POSTGRES_DB'],
-    user=os.environ['POSTGRES_USER'],
-    password=os.environ['POSTGRES_PASSWORD'],
-    port=os.environ['POSTGRES_PORT'])
-
-payment_db_cursor = payment_db_conn.cursor()
-
-stock_db_conn = psycopg2.connect(
-    host=os.environ['POSTGRES_HOST_STOCK'],
-    database=os.environ['POSTGRES_DB'],
-    user=os.environ['POSTGRES_USER'],
-    password=os.environ['POSTGRES_PASSWORD'],
-    port=os.environ['POSTGRES_PORT'])
-
-stock_db_cursor = stock_db_conn.cursor()
+central_db_cursor = central_db_conn.cursor()
 
 def close_db_connection():
     db.close()
-    order_db_conn.close()
-    order_db_cursor.close()
-    payment_db_conn.close()
-    payment_db_cursor.close()
-    stock_db_conn.close()
-    stock_db_cursor.close()
+    central_db_cursor.close()
+    central_db_conn.close()
+
 
 atexit.register(close_db_connection)
-
-# Just a simple get all function so we can use this instead of pgadmin
-@app.get('/getall')
-def get_all():
-    sql_statement = """SELECT * FROM order_table;"""
-    order_db_cursor.execute(sql_statement)
-    order = order_db_cursor.fetchall()    
-    return {"order": order}, 200
 
 
 @app.post('/create/<user_id>')
 def create_order(user_id):
-    #Find user, can maybe remove this to speed up the process
-    sql_statement = """SELECT * FROM payment WHERE user_id = %s;"""
-    try:
-        payment_db_cursor.execute(sql_statement, (user_id,))
-        user = payment_db_cursor.fetchone()
-        if not user:
-            return {"error": "User not found"}, 400
-    except psycopg2.DatabaseError as error:
-        print(error)
-        return {"error": "Error finding user"}, 400
-
     sql_statement = """INSERT INTO order_table (user_id, paid, items, total_price) 
                        VALUES (%s, %s, %s::items[], %s) RETURNING order_id;"""
     try:
-        order_db_cursor.execute(sql_statement, (user_id, False, [], 0))
-        order_id_of_new_row = order_db_cursor.fetchone()[0]
-        order_db_conn.commit()
+        central_db_cursor.execute(sql_statement, (user_id, False, [], 0))
+        order_id_of_new_row = central_db_cursor.fetchone()[0]
+        central_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
         return {"error": "User id not found"}, 400
@@ -91,8 +51,8 @@ def remove_order(order_id):
     sql_statement = """ DELETE FROM order_table
                         WHERE order_id=%s; """
     try:
-        order_db_cursor.execute(sql_statement, (order_id,))
-        order_db_conn.commit()
+        central_db_cursor.execute(sql_statement, (order_id,))
+        central_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
         return {"error": "Order id not found"}, 400
@@ -105,8 +65,8 @@ def add_item(order_id, item_id):
     try:
         # Check if order exists
         sql_statement = """SELECT * FROM order_table WHERE order_id = %s;"""
-        order_db_cursor.execute(sql_statement, (order_id,))
-        order = order_db_cursor.fetchone()
+        central_db_cursor.execute(sql_statement, (order_id,))
+        order = central_db_cursor.fetchone()
         if not order:
             return {"error": "Order not found"}, 400
 
@@ -116,8 +76,8 @@ def add_item(order_id, item_id):
         # Prof Asterios said that was ok though
         # Check if item exists and retrieve its price
         sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
-        stock_db_cursor.execute(sql_statement, (item_id,))
-        item = stock_db_cursor.fetchone()
+        central_db_cursor.execute(sql_statement, (item_id,))
+        item = central_db_cursor.fetchone()
         if not item:
             return {"error": "Item not found"}, 400
 
@@ -163,9 +123,9 @@ def add_item(order_id, item_id):
                 WHERE order_id = %s;
             """)
         
-        order_db_cursor.execute(update_order_items_query_add, (item_id, item_id, item_id, item_id, item_id, order_id))
-        order_db_cursor.execute(update_order_total_price_query, (order_id,))
-        order_db_conn.commit()
+        central_db_cursor.execute(update_order_items_query_add, (item_id, item_id, item_id, item_id, item_id, order_id))
+        central_db_cursor.execute(update_order_total_price_query, (order_id,))
+        central_db_conn.commit()
         
         # sql_statement = """ UPDATE order_table
         #                     SET items = items || ROW(%s, 1, %s)::items, total_price = total_price + %s
@@ -186,18 +146,18 @@ def remove_item(order_id, item_id):
             # Check if order exists
     try:        
         sql_statement = """SELECT * FROM order_table WHERE order_id = %s;"""
-        order_db_cursor.execute(sql_statement, (order_id,))
-        order = order_db_cursor.fetchone()
+        central_db_cursor.execute(sql_statement, (order_id,))
+        order = central_db_cursor.fetchone()
         if not order:
             return {"error": "Order not found"}, 400
 
         # This step is OPTIONAL we can remove it to speed things up since db access is slow and expensive: 
         # Check if item exists and retrieve its price
-        # sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
-        # central_db_cursor.execute(sql_statement, (item_id,))
-        # item = central_db_cursor.fetchone()
-        # if not item:
-        #     return {"error": "Item with this item_id does not exist in stock table"}, 400
+        sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
+        central_db_cursor.execute(sql_statement, (item_id,))
+        item = central_db_cursor.fetchone()
+        if not item:
+            return {"error": "Item with this item_id does not exist in stock table"}, 400
         
         # NOTE:TODO we do not yet check whether 
         # an item exists in the items[] array / shopping cart when we delete it
@@ -229,9 +189,9 @@ def remove_item(order_id, item_id):
                 )
                 WHERE order_id = %s;
             """)
-        order_db_cursor.execute(update_order_items_query_remove, (item_id, item_id, order_id))
-        order_db_cursor.execute(update_order_total_price_query, (order_id,))
-        order_db_conn.commit()
+        central_db_cursor.execute(update_order_items_query_remove, (item_id, item_id, order_id))
+        central_db_cursor.execute(update_order_total_price_query, (order_id,))
+        central_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
         return {"error": "Failed to remove item from order"}, 400
@@ -244,8 +204,8 @@ def find_order(order_id):
     try:
         sql_statement = """SELECT * FROM order_table WHERE order_id = %s;"""
         print(type(order_id))
-        order_db_cursor.execute(sql_statement, (order_id,))
-        order = order_db_cursor.fetchone()
+        central_db_cursor.execute(sql_statement, (order_id,))
+        order = central_db_cursor.fetchone()
         if not order:
             return {"error": "order not found"}, 400
     except psycopg2.DatabaseError as error:
@@ -259,47 +219,42 @@ def find_order(order_id):
 @app.post('/checkout/<order_id>')
 def checkout(order_id):
     try:
-        sql_statement = """SELECT user_id, total_price, items, paid FROM order_table WHERE order_id = %s;"""
-        order_db_cursor.execute(sql_statement, (order_id,))
-        order = order_db_cursor.fetchone()
+        sql_statement = """SELECT user_id, total_price, items FROM order_table WHERE order_id = %s;"""
+        central_db_cursor.execute(sql_statement, (order_id,))
+        order = central_db_cursor.fetchone()
         if not order:
             return {"error": "Order not found"}, 400
 
-        # Check if order is already paid
-        user_id, total_price, items_string, paid = order
-        if paid:
-            return {"error": "Order already paid"}, 400
-
+        user_id, total_price, items_string = order
         items = parse_items(items_string)
 
         # Check if user has enough credit
         sql_statement = """SELECT credit FROM payment WHERE user_id = %s;"""
-        payment_db_cursor.execute(sql_statement, (user_id,))
-        credit = payment_db_cursor.fetchone()[0]
+        central_db_cursor.execute(sql_statement, (user_id,))
+        credit = central_db_cursor.fetchone()[0]
         if credit < total_price:
             return {"error": "Not enough credit"}, 400
 
         # Subtract total price from user's credit
         sql_statement = """UPDATE payment SET credit = credit - %s WHERE user_id = %s;"""
-        payment_db_cursor.execute(sql_statement, (total_price, user_id))
+        central_db_cursor.execute(sql_statement, (total_price, user_id))
 
         # Subtract quantities from stock
         for item_id, stock, _ in items:
             sql_statement = """UPDATE stock SET stock = stock - %s WHERE item_id = %s;"""
-            stock_db_cursor.execute(sql_statement, (stock, item_id))
+            central_db_cursor.execute(sql_statement, (stock, item_id))
 
         # Mark order as paid
         sql_statement = """UPDATE order_table SET paid = TRUE WHERE order_id = %s;"""
-        order_db_cursor.execute(sql_statement, (order_id,))
+        central_db_cursor.execute(sql_statement, (order_id,))
 
-        payment_db_conn.commit()
-        stock_db_conn.commit()
-        order_db_conn.commit()
+        central_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
         return {"error": "Something went wrong during checkout"}, 500
     
     return {"success": f"Order {order_id} has been paid"}, 200
+
 
 
 def parse_items(items_str):
