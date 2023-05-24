@@ -1,0 +1,8 @@
+# fullnameOverride: kafka
+kraft:
+  enabled: false
+zookeeper:
+  enabled: true 
+replicaCount: 3
+externalZookeeper: 
+  servers: zookeeper.default.svc.cluster.local #zookeeper

@@ -19,6 +19,17 @@ helm install payment-db -f helm-config/payment_db.yaml bitnami/postgresql
 helm install stock-db -f helm-config/stock_db.yaml bitnami/postgresql
 helm install order-db -f helm-config/order_db.yaml bitnami/postgresql
 
+# deploy apache kafka and apache zookeeper
+helm install zookeeper bitnami/zookeeper
+
+helm install kafka -f helm-config/kafka.yaml bitnami/kafka 
+helm install zookeeper -f helm-config/zookeeper.yaml bitnami/zookeeper
+
+minikube image load kafkapod:latest
+
+cd kafka-pod
+kubectl apply -f .
+
 # move images to minikube virtual machine
 minikube image load order:latest
 minikube image load stock:latest
