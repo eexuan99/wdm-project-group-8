@@ -2,8 +2,7 @@ import os
 import atexit
 import redis
 import psycopg2
-from flask import Flask
-
+from flask import Flask, request
 
 app = Flask("payment-service")
 
@@ -136,3 +135,4 @@ def payment_status(user_id: str, order_id: str):
         return {"error": "Error cancelling payment"}, 400
     
     return {"Order status": status[0]}, 200
+

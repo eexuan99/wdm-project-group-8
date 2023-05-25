@@ -3,15 +3,16 @@ import atexit
 import redis
 import psycopg2
 import re
-from flask import Flask
+
+import requests
+from flask import Flask, request, jsonify
 from psycopg2 import sql
 
 app = Flask("order-service")
 
-db: redis.Redis = redis.Redis(host=os.environ['REDIS_HOST'],
-                              port=int(os.environ['REDIS_PORT']),
-                              password=os.environ['REDIS_PASSWORD'],
-                              db=int(os.environ['REDIS_DB']))
+redis_client: redis.Redis = redis.Redis(host='redis_client', port=6379)
+    # redis.Redis(host=os.environ['REDIS_HOST'],
+    #                           port=int(os.environ['REDIS_PORT']))
 
 central_db_conn = psycopg2.connect(
     host=os.environ['POSTGRES_HOST'],
@@ -23,13 +24,20 @@ central_db_conn = psycopg2.connect(
 central_db_cursor = central_db_conn.cursor()
 
 def close_db_connection():
-    db.close()
+    redis_client.close()
     central_db_cursor.close()
     central_db_conn.close()
 
 
 atexit.register(close_db_connection)
 
+@app.post('/test')
+def ping():
+    response = redis_client.ping()
+    if response:
+        return("Connected to Redis successfully")
+    else:
+        return("Failed to connect to Redis")
 
 @app.post('/create/<user_id>')
 def create_order(user_id):
@@ -70,63 +78,79 @@ def add_item(order_id, item_id):
         if not order:
             return {"error": "Order not found"}, 400
 
-        # Optional: this db access can be removed for making this app faster, 
-        # the `update_order_items_query_add` already searches for the price
-        # NOTE however that removing this will cause the error code of 400 to not be returned
-        # Prof Asterios said that was ok though
-        # Check if item exists and retrieve its price
-        sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
-        central_db_cursor.execute(sql_statement, (item_id,))
-        item = central_db_cursor.fetchone()
-        if not item:
-            return {"error": "Item not found"}, 400
+        if redis_client.exists(item_id):
+            price = get_value(item_id)
+        else:
+            price = get_item_price(item_id)['price']
+            set_value(item_id, price)
 
-        # price = item[0]
-        update_order_items_query_add = sql.SQL("""
-            UPDATE order_table  
-            SET items = (
-                SELECT CASE
-                    WHEN EXISTS (
-                        SELECT 1
-                        FROM UNNEST(items) AS item
-                        WHERE item.item_id = %s
-                    )
-                    THEN array_agg(
-                        CASE
-                            WHEN item.item_id = %s THEN ROW(item.item_id, item.amount + 1, item.unit_price)::items
-                            ELSE item
-                        END
-                    )
-                    ELSE CASE
-                        WHEN (SELECT COUNT(*) FROM stock WHERE item_id = %s) > 0 THEN
-                            array_agg(item) || (
-                                SELECT (%s, 1, unit_price)::items
-                                FROM stock
-                                WHERE item_id = %s
-                            )
-                        ELSE
-                            array_agg(item)
-                        END
-                END
-                FROM UNNEST(items) AS item
-            )
-            WHERE order_id = %s;
-        """)
-        
-        # Add item to order's items and update total price
         update_order_total_price_query = sql.SQL("""
                 UPDATE order_table
-                SET total_price = (
-                    SELECT SUM((item.amount * item.unit_price))
-                    FROM UNNEST(items) AS item
-                )
+                SET total_price = total_price + %s
                 WHERE order_id = %s;
             """)
-        
-        central_db_cursor.execute(update_order_items_query_add, (item_id, item_id, item_id, item_id, item_id, order_id))
-        central_db_cursor.execute(update_order_total_price_query, (order_id,))
+
+        # central_db_cursor.execute(update_order_items_query_add, (item_id, item_id, item_id, item_id, item_id, order_id))
+        central_db_cursor.execute(update_order_total_price_query, (price, order_id))
         central_db_conn.commit()
+
+        # # Optional: this db access can be removed for making this app faster,
+        # # the `update_order_items_query_add` already searches for the price
+        # # NOTE however that removing this will cause the error code of 400 to not be returned
+        # # Prof Asterios said that was ok though
+        # # Check if item exists and retrieve its price
+        # sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
+        # central_db_cursor.execute(sql_statement, (item_id,))
+        # item = central_db_cursor.fetchone()
+        # if not item:
+        #     return {"error": "Item not found"}, 400
+
+        # # price = item[0]
+        # update_order_items_query_add = sql.SQL("""
+        #     UPDATE order_table
+        #     SET items = (
+        #         SELECT CASE
+        #             WHEN EXISTS (
+        #                 SELECT 1
+        #                 FROM UNNEST(items) AS item
+        #                 WHERE item.item_id = %s
+        #             )
+        #             THEN array_agg(
+        #                 CASE
+        #                     WHEN item.item_id = %s THEN ROW(item.item_id, item.amount + 1, item.unit_price)::items
+        #                     ELSE item
+        #                 END
+        #             )
+        #             ELSE CASE
+        #                 WHEN (SELECT COUNT(*) FROM stock WHERE item_id = %s) > 0 THEN
+        #                     array_agg(item) || (
+        #                         SELECT (%s, 1, unit_price)::items
+        #                         FROM stock
+        #                         WHERE item_id = %s
+        #                     )
+        #                 ELSE
+        #                     array_agg(item)
+        #                 END
+        #         END
+        #         FROM UNNEST(items) AS item
+        #     )
+        #     WHERE order_id = %s;
+        # """)
+        #
+        # # Add item to order's items and update total price
+        # update_order_total_price_query = sql.SQL("""
+        #         UPDATE order_table
+        #         SET total_price = (
+        #             SELECT SUM((item.amount * item.unit_price))
+        #             FROM UNNEST(items) AS item
+        #         )
+        #         WHERE order_id = %s;
+        #     """)
         
+        # central_db_cursor.execute(update_order_items_query_add, (item_id, item_id, item_id, item_id, item_id, order_id))
+        # central_db_cursor.execute(update_order_total_price_query, (order_id,))
+        # central_db_conn.commit()
+        #
         # sql_statement = """ UPDATE order_table
         #                     SET items = items || ROW(%s, 1, %s)::items, total_price = total_price + %s
         #                     WHERE order_id = %s; """
@@ -139,6 +163,23 @@ def add_item(order_id, item_id):
     
     return {"success": f"Added item {item_id} to order {order_id}"}, 200
 
+# @app.get('/getPrice/<item_id>')
+def get_item_price(item_id: int):
+    # Call other microservice
+    req = requests.get(f"http://stock-service:5000/getPrice/{item_id}")
+    price = req.json()['price']
+    print(price)
+    return req.json()
+
+def set_value(key, value):
+    redis_client.set(key, value)
+    return 'Value added to Redis'
+
+def get_value(key):
+    value = redis_client.get(key)
+    if value is None:
+        return 'Key not found in Redis'
+    return f'The value for key {key} is {value.decode()}'
 
 @app.delete('/removeItem/<order_id>/<item_id>')
 def remove_item(order_id, item_id):
@@ -268,3 +309,4 @@ def parse_items(items_str):
 
 def parse_integer(str):
     return int(re.sub("[^0-9]", "", str))
+

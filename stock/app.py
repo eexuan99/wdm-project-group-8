@@ -2,7 +2,7 @@ import os
 import atexit
 import redis
 import psycopg2
-from flask import Flask
+from flask import Flask, request, jsonify
 
 app = Flask("stock-service")
 
@@ -91,4 +91,17 @@ def remove_stock(item_id: int, amount: int):
     except psycopg2.DatabaseError as error:
         print(error)
         return {"error": "Error creating item"}, 400
-    
+
+@app.get('/getPrice/<item_id>')
+def get_item_price(item_id: int):
+    # Call other microservice
+    sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
+    try:
+        central_db_cursor.execute(sql_statement, item_id)
+        item = central_db_cursor.fetchone()
+        if not item:
+            return {"error": "Item not found"}, 400
+    except psycopg2.DatabaseError as error:
+        print(error)
+        return {"error": "Error creating item"}, 400
+    return jsonify({"price": item[0]}), 200
