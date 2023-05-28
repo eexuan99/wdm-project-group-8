@@ -290,17 +290,7 @@ def checkout(order_id):
                 continue
 
             if message.value['type'] == 'trfail':
-                sql_statement = """UPDATE order_table SET paid = 'not_paid' WHERE order_id = %s;"""
-                central_db_cursor.execute(sql_statement, (order_id,))
-
-                central_db_conn.commit()
-
                 return {"fail": f"Unable to check-out order {order_id}: not enough credit or stock"}, 400
-
-            sql_statement = """UPDATE order_table SET paid = 'paid' WHERE order_id = %s;"""
-
-            central_db_cursor.execute(sql_statement, (order_id,))
-            central_db_conn.commit()
 
             return {"success": f"Order {order_id} has been paid"}, 200
 

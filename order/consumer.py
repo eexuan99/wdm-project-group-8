@@ -35,28 +35,43 @@ opsConsumer = KafkaConsumer(
 
 opsConsumer.subscribe(topics=['outcomes'])
 
+
+############################################ Partition state class ############################################
+
+class PartitionState():
+    def __init__(self, number) -> None:
+        self.id = number
+        self.offset_to_read  = getCommittedOffset(number)
+        self.tr_start_offset = deque()  # holds ((order_id, tr_num), offs of first message)
+        self.tr_pending = {}   # for (order_id, tr_num) holds list of msgs
+        self.tr_done = set()    # holds (order_id, tr_num) of ended transactions,
+                            # needed for lazy removal of transactions in tr_start_offset
+         
+
+
 ############################################ Deal with messages functions
 ############################################
 
 # Changes the message's partition state when needed, by adding message 
 # to pending messages or tr_id = (order_id, tr_num) to done transactions
-def addMessageToState(message, partitionsState: dict):
-    partDict = partitionsState[message.partition]
-    pending = partDict['tr_pending']
+def addMessageToState(message, state: PartitionState):
     tr_id = (message.key['order_id'], message.key['tr_num'])
 
     # I don't need to add the transaction done message to the pending messages, at most add tr_id to done transactions
-    if message.value['type'] in ['trsucc', 'trfail'] and tr_id in pending.keys():
-        partDict['tr_done'].add(tr_id)
+    if message.value['type'] in ['trsucc', 'trfail'] and tr_id in state.tr_pending.keys():
+        state.tr_done.add(tr_id)
     else:
         # if this is the first message from this transaction
-        if tr_id not in pending.keys():
-            pending[tr_id] = []
-            partDict['tr_start_offset'].append(tr_id, message.offset)
+        if tr_id not in state.tr_pending.keys():
+            state.tr_pending[tr_id] = []
+            state.tr_start_offset.append(tr_id, message.offset)
             
-        pending[tr_id].append(message)
+        state.tr_pending[tr_id].append(message)
 
-# Takes as input the two messages 
+# Takes as input the list of messages from pending.
+# If there are no two suitable messages it return (alters list if 2 duplicate messages)
+# If there are two suitable messages it sends messages to Outcomes, and eventually 
+# to Pay and Stock, then alters the order db to change the payment status
 def sendOutcomeMessages(pending: list):
     if len(pending) != 2:
         return
@@ -65,7 +80,7 @@ def sendOutcomeMessages(pending: list):
     # If for some reason we have 2 message from stock or 2 messages from pay:
     # m1.value['type'][0] = first letter, 'p' or 's' 
     if m1.value['type'][0] == m2.value['type'][0]:
-        pending.pop(1)
+        pending.pop(0)
         return
     
     # If both operation succeded:
@@ -77,6 +92,10 @@ def sendOutcomeMessages(pending: list):
                 'type': 'trsucc'
             }
         )
+        sql_statement = """UPDATE order_table SET paid = 'paid' WHERE order_id = %s;"""
+
+        cursor.execute(sql_statement, (m1.key['order_id'],))
+        connector.commit()
         return
 
     producer.send(
@@ -86,6 +105,10 @@ def sendOutcomeMessages(pending: list):
             'type': 'trfail'
         }
     )
+    sql_statement = """UPDATE order_table SET paid = 'not_paid' WHERE order_id = %s;"""
+
+    cursor.execute(sql_statement, (m1.key['order_id'],))
+    connector.commit()
 
     # If both have failed there is no need to send rollbacks
     if m1.value['type'][1:] == m2.value['type'][1:] == 'fail':
@@ -109,7 +132,8 @@ def sendOutcomeMessages(pending: list):
     )
 
 
-def getCommittedOffsets(partitionNumber: int):
+# Fetches the last message from outc_offs (from specified partition) and returns it
+def getCommittedOffset(partitionNumber: int) -> int:
     
     consumer = KafkaConsumer(
         # boostrap_servers = ?,
@@ -130,19 +154,20 @@ def getCommittedOffsets(partitionNumber: int):
     
     return next(consumer).value['offset']
 
-# 
+# It builds the state for a new partition or repairs an existing state for an old partition.
+# If the partition is new, it adds a new PartitionState to the partitionsState dict. When
+# doing so, the last offset for that partition is fetched. From this last offset, or from a 
+# previous old starting offset, up until the currentOffset, messages are read and added 
+# to state, but sendOutcomeMessages is never called.
+# It returns nothing, but the state when returning is such that the message at current 
+# offset still has to be read, as it needs to be processed.
 def buildState(partitionsState: dict, partitionNumber: int, currentOffset: int):
 
     if partitionNumber not in partitionsState.keys():
-        partitionsState[partitionNumber] = {
-            'offset_to_read' : getCommittedOffsets(partitionNumber),
-            'tr_start_offset': deque(),  # holds ((order_id, tr_num), offs of first message)
-            'tr_pending': {},   # for (order_id, tr_num) holds list of msgs
-            'tr_done': set()    # holds (order_id, tr_num) of ended transactions,
-                                # needed for lazy removal of transactions in tr_start_offset
-        }
+        partitionsState[partitionNumber] = PartitionState(partitionNumber)
+    state = partitionsState[partitionNumber]
     
-    partDict = partitionsState[partitionNumber]
+    # consumer needed to read all messages from offset in state up to currentOffset
     consumer = KafkaConsumer(
         # boostrap_servers = ?,
         value_deserializer=lambda v: json.loads(v.decode('ascii')),
@@ -151,32 +176,29 @@ def buildState(partitionsState: dict, partitionNumber: int, currentOffset: int):
 
     partition = TopicPartition('outcomes', partitionNumber)
     consumer.assign([partition])
-    consumer.seek(partition, partDict['offset_to_read'])
+    consumer.seek(partition, state.offset_to_read)
     
-    # TODO: check if makes sense
-    partDict['offset_to_read'] = currentOffset
-
     for msg in consumer:
         
         # > just in the case that asynch commit did not commit the offsets of read messages 
         # before the consumer died, but after the consumer pushed an offset to outc_offs
         if msg.offset >= currentOffset:
-            partDict['offset_to_read'] = msg.offset
+            state.offset_to_read = msg.offset
             break
         
         addMessageToState(msg, partitionsState)
     
-    
     # if there is no new offset to push to outc_offs
-    if len(partDict['tr_start_offset']) == 0: return
+    if len(state.tr_start_offset) == 0: return
 
+    # check whether anything has to be pushed to outc_offs at all
     commitOffset = None
-    while(partDict['tr_start_offset'][0] in partDict['tr_done']):
-        partDict['tr_done'].remove(partDict['tr_start_offset'][0] )
-        partDict['tr_start_offset'].popleft()
+    while(state.tr_start_offset[0] in state.tr_done):
+        state.tr_done.remove(state.tr_start_offset[0] )
+        state.tr_start_offset.popleft()
         
-        if len(partDict['tr_start_offset']) > 0:
-            commitOffset = partDict['tr_start_offset'][1]
+        if len(state.tr_start_offset) > 0:
+            commitOffset = state.tr_start_offset[0][1]
         else:
             commitOffset = currentOffset
             break
@@ -204,11 +226,12 @@ for message in opsConsumer:
     offset = message.offset
     
     # TODO: check if loops with build state for offset_to_read
-    if partition not in partitionsStates.keys() or partitionsStates[partition]['offset_to_read']!=offset:
+    if partition not in partitionsStates.keys() or partitionsStates[partition].offset_to_read!=offset:
         buildState(partitionsStates, partition, offset)
-        opsConsumer.seek(partition, partitionsStates[partition]['offset_to_read'])
+        opsConsumer.seek(partition, partitionsStates[partition].offset_to_read)
+        message = opsConsumer.next()
 
-    partState = partitionsStates[partition]
+    state = partitionsStates[partition]
     addMessageToState(message, partitionsStates)
-    sendOutcomeMessages(partState['pending'][tr_key])
-    partState['offset_to_read'] += 1
+    sendOutcomeMessages(state.pending[tr_key])
+    state.offset_to_read += 1
