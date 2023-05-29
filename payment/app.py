@@ -21,7 +21,7 @@ db: redis.Redis = redis.Redis(host=os.environ['REDIS_HOST'],
 # order_db_cursor = order_db_conn.cursor()
 
 payment_db_conn = psycopg2.connect(
-    host=os.environ['POSTGRES_HOST_PAYMENT'],
+    host=os.environ['POSTGRES_HOST'],
     database=os.environ['POSTGRES_DB'],
     user=os.environ['POSTGRES_USER'],
     password=os.environ['POSTGRES_PASSWORD'],

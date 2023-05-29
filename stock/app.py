@@ -12,7 +12,7 @@ db: redis.Redis = redis.Redis(host=os.environ['REDIS_HOST'],
                               db=int(os.environ['REDIS_DB']))
 
 stock_db_conn = psycopg2.connect(
-    host=os.environ['POSTGRES_HOST_STOCK'],
+    host=os.environ['POSTGRES_HOST'],
     database=os.environ['POSTGRES_DB'],
     user=os.environ['POSTGRES_USER'],
     password=os.environ['POSTGRES_PASSWORD'],
