@@ -78,9 +78,9 @@ def create_order(user_id):
     sql_statement = """INSERT INTO order_table (user_id, paid, items, total_price) 
                        VALUES (%s, %s, %s::items[], %s) RETURNING order_id;"""
     try:
-        central_db_cursor.execute(sql_statement, (user_id, 'not_paid', [], 0))
-        order_id_of_new_row = central_db_cursor.fetchone()[0]
-        central_db_conn.commit()
+        order_db_cursor.execute(sql_statement, (user_id, 'not_paid', [], 0))
+        order_id_of_new_row = order_db_cursor.fetchone()[0]
+        order_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
         return {"error": "User id not found"}, 400
@@ -172,9 +172,9 @@ def add_item(order_id, item_id):
         # sql_statement = """ UPDATE order_table
         #                     SET items = items || ROW(%s, 1, %s)::items, total_price = total_price + %s
         #                     WHERE order_id = %s; """
-        # central_db_cursor.execute(sql_statement, (item_id, price, price, order_id))
+        # order_db_cursor.execute(sql_statement, (item_id, price, price, order_id))
 
-        # central_db_conn.commit()
+        # order_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
         return {"error": "Something went wrong during adding an item"}, 500
@@ -196,8 +196,8 @@ def remove_item(order_id, item_id):
         # This step is OPTIONAL we can remove it to speed things up since db access is slow and expensive: 
         # Check if item exists and retrieve its price
         # sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
-        # central_db_cursor.execute(sql_statement, (item_id,))
-        # item = central_db_cursor.fetchone()
+        # order_db_cursor.execute(sql_statement, (item_id,))
+        # item = order_db_cursor.fetchone()
         # if not item:
         #     return {"error": "Item with this item_id does not exist in stock table"}, 400
         
@@ -262,8 +262,10 @@ def find_order(order_id):
 def checkout(order_id):
     try:
         sql_statement = """SELECT user_id, total_price, items, p_status FROM order_table WHERE order_id = %s;"""
-        central_db_cursor.execute(sql_statement, (order_id,))
-        order = central_db_cursor.fetchone()
+        
+        
+        order_db_cursor.execute(sql_statement, (order_id,))
+        order = order_db_cursor.fetchone()
         if not order:
             return {"error": "Order not found"}, 400
 
@@ -275,9 +277,9 @@ def checkout(order_id):
         items = parse_items(items_string)
 
         sql_statement = """UPDATE order_table SET tr_number = tr_number +1, p_status = 'pending' WHERE order_id = %s RETURNING tr_number"""
-        central_db_cursor.execute(sql_statement, (order_id,))
-        tr_num = central_db_cursor.fetchone()
-        central_db_conn.commit()
+        order_db_cursor.execute(sql_statement, (order_id,))
+        tr_num = order_db_cursor.fetchone()
+        order_db_conn.commit()
 
         producer = KafkaProducer(
             # boostrap_servers = ?,
