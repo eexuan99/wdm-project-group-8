@@ -22,8 +22,9 @@ helm install order-db -f helm-config/order_db.yaml bitnami/postgresql
 # deploy apache kafka and apache zookeeper
 # helm install zookeeper bitnami/zookeeper
 
-helm install kafka -f helm-config/kafka.yaml bitnami/kafka 
 helm install zookeeper -f helm-config/zookeeper.yaml bitnami/zookeeper
+helm install kafka -f helm-config/kafka.yaml bitnami/kafka 
+
 
 minikube image load kafkapod:latest
 
@@ -36,7 +37,7 @@ minikube image load stock:latest
 minikube image load user:latest
 
 
-cd k8s`
+cd k8s
 kubectl apply -f .
 cd ..
 minikube tunnel
