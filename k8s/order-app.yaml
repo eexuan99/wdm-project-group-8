@@ -62,7 +62,11 @@ spec:
             - name: POSTGRES_DB
               value: "database"
             - name: POSTGRES_PORT
-              value: '5432'           
+              value: '5432'     
+            - name: POSTGRES_HOST_STOCK
+              value: stock-db
+            - name: POSTGRES_HOST_PAYMENT
+              value: payment-db          
 # POSTGRES_HOST=central-db
 # POSTGRES_PASSWORD=secret
 # POSTGRES_USER=username
