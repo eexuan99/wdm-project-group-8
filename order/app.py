@@ -75,7 +75,7 @@ def create_order(user_id):
         print(error)
         return {"error": "Error finding user"}, 400
 
-    sql_statement = """INSERT INTO order_table (user_id, paid, items, total_price) 
+    sql_statement = """INSERT INTO order_table (user_id, p_status, items, total_price) 
                        VALUES (%s, %s, %s::items[], %s) RETURNING order_id;"""
     try:
         order_db_cursor.execute(sql_statement, (user_id, 'not_paid', [], 0))
