@@ -3,8 +3,10 @@ import atexit
 import redis
 import psycopg2
 import re
+import json
 from flask import Flask
 from psycopg2 import sql
+from kafka import KafkaConsumer, KafkaProducer, TopicPartition
 
 app = Flask("order-service")
 
@@ -76,9 +78,9 @@ def create_order(user_id):
     sql_statement = """INSERT INTO order_table (user_id, paid, items, total_price) 
                        VALUES (%s, %s, %s::items[], %s) RETURNING order_id;"""
     try:
-        order_db_cursor.execute(sql_statement, (user_id, False, [], 0))
-        order_id_of_new_row = order_db_cursor.fetchone()[0]
-        order_db_conn.commit()
+        central_db_cursor.execute(sql_statement, (user_id, 'not_paid', [], 0))
+        order_id_of_new_row = central_db_cursor.fetchone()[0]
+        central_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
         return {"error": "User id not found"}, 400
@@ -259,48 +261,81 @@ def find_order(order_id):
 @app.post('/checkout/<order_id>')
 def checkout(order_id):
     try:
-        sql_statement = """SELECT user_id, total_price, items, paid FROM order_table WHERE order_id = %s;"""
-        order_db_cursor.execute(sql_statement, (order_id,))
-        order = order_db_cursor.fetchone()
+        sql_statement = """SELECT user_id, total_price, items, p_status FROM order_table WHERE order_id = %s;"""
+        central_db_cursor.execute(sql_statement, (order_id,))
+        order = central_db_cursor.fetchone()
         if not order:
             return {"error": "Order not found"}, 400
 
-        # Check if order is already paid
-        user_id, total_price, items_string, paid = order
-        if paid:
-            return {"error": "Order already paid"}, 400
+        user_id, total_price, items_string, status = order
+
+        if status != 'not_paid':
+            return {"error": "Order pending or already checked out"}, 400
 
         items = parse_items(items_string)
 
-        # Check if user has enough credit
-        sql_statement = """SELECT credit FROM payment WHERE user_id = %s;"""
-        payment_db_cursor.execute(sql_statement, (user_id,))
-        credit = payment_db_cursor.fetchone()[0]
-        if credit < total_price:
-            return {"error": "Not enough credit"}, 400
+        sql_statement = """UPDATE order_table SET tr_number = tr_number +1, p_status = 'pending' WHERE order_id = %s RETURNING tr_number"""
+        central_db_cursor.execute(sql_statement, (order_id,))
+        tr_num = central_db_cursor.fetchone()
+        central_db_conn.commit()
 
-        # Subtract total price from user's credit
-        sql_statement = """UPDATE payment SET credit = credit - %s WHERE user_id = %s;"""
-        payment_db_cursor.execute(sql_statement, (total_price, user_id))
+        producer = KafkaProducer(
+            # boostrap_servers = ?,
+            value_serializer = lambda v: json.loads(v.decode('ascii')),
+            key_serializer = lambda v: json.loads(v.decode('ascii')),
+        )
 
-        # Subtract quantities from stock
-        for item_id, stock, _ in items:
-            sql_statement = """UPDATE stock SET stock = stock - %s WHERE item_id = %s;"""
-            stock_db_cursor.execute(sql_statement, (stock, item_id))
+        key = {
+                'order_id': order_id,
+                'tr_num': tr_num
+            }
+        
+        itemsList = [{
+            'id': id,
+            'amnt': amnt
+        } for id, amnt, _ in items]
 
-        # Mark order as paid
-        sql_statement = """UPDATE order_table SET paid = TRUE WHERE order_id = %s;"""
-        order_db_cursor.execute(sql_statement, (order_id,))
+        future = producer.send(
+            'stock',
+            key= key,
+            value = {
+                'tr_type': 'sub',
+                'items': itemsList                
+            }
+        )
 
-        payment_db_conn.commit()
-        stock_db_conn.commit()
-        order_db_conn.commit()
+        metadata = future.get()
+        partition = metadata.partition
+
+        consumer = KafkaConsumer(
+            # boostrap_servers = ?,
+            value_deserializer=lambda v: json.loads(v.decode('ascii')),
+            key_deserializer=lambda v: json.loads(v.decode('ascii')),
+            auto_offset_reset='latest',
+        )
+        consumer.assign([TopicPartition('outcomes', partition)])
+
+        producer.send(
+            'pay',
+            key= key,
+            value = {
+                'tr_type': 'pay',
+                'user_id': user_id,
+                'amnt': total_price
+            }
+        )
+
+        for message in consumer:
+            if message.key != key or message.value['type'][:2] != 'tr':
+                continue
+
+            if message.value['type'] == 'trfail':
+                return {"fail": f"Unable to check-out order {order_id}: not enough credit or stock"}, 400
+
+            return {"success": f"Order {order_id} has been paid"}, 200
     except psycopg2.DatabaseError as error:
         print(error)
         return {"error": "Something went wrong during checkout"}, 500
-    
-    return {"success": f"Order {order_id} has been paid"}, 200
-
 
 def parse_items(items_str):
     items_str = items_str[1:-1]
