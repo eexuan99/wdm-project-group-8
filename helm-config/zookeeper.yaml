@@ -1,0 +1,6 @@
+# fullnameOverride: zookeeper
+replicaCount: 3 
+auth:
+  client:
+    enabled: false
+# allowAnonymousLogin: true -> is now deprecated
