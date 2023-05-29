@@ -32,7 +32,7 @@ consumer = KafkaConsumer(
     auto_offset_reset='earliest',
 )
 
-consumer.subscribe(topics=['stock'])
+consumer.subscribe(topics=['Stock-topic'])
 
 last_offsets = {}
 
@@ -92,7 +92,7 @@ for message in consumer:
 
     if ok and tr_type == 'sub':
         producer.send(
-            'outcomes',
+            'Outcomes-topic',
             key = {
                 'order_id': order_id,
                 'tr_num': tr_num
@@ -105,7 +105,7 @@ for message in consumer:
         )
     elif tr_type == 'sub':
         producer.send(
-            'outcomes',
+            'Outcomes-topic',
             key = {
                 'order_id': order_id,
                 'tr_num': tr_num
