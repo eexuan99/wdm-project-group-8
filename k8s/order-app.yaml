@@ -26,7 +26,44 @@ spec:
         component: order
     spec:
       containers:
-        - name: order
+        # - name: order
+        #   image: order:latest
+        #   imagePullPolicy: Never
+        #   resources:
+        #     limits:
+        #       memory: "1Gi"
+        #       cpu: "1"
+        #     requests:
+        #       memory: "1Gi"
+        #       cpu: "1"
+        #   command: ["gunicorn"]
+        #   args: ["-b", "0.0.0.0:5000", "app:app"]
+        #   ports:
+        #     - containerPort: 5000
+        #   env:
+        #     - name: USER_SERVICE_URL
+        #       value: "user-service"
+        #     - name: STOCK_SERVICE_URL
+        #       value: "stock-service"
+        #     - name: REDIS_HOST
+        #       value: redis-master
+        #     - name: REDIS_PORT
+        #       value: '6379'
+        #     - name: REDIS_PASSWORD
+        #       value: "redis"
+        #     - name: REDIS_DB
+        #       value: "0"
+        #     - name: POSTGRES_HOST
+        #       value: order-db
+        #     - name: POSTGRES_PASSWORD
+        #       value: "secret"
+        #     - name: POSTGRES_USER
+        #       value: "username"
+        #     - name: POSTGRES_DB
+        #       value: "database"
+        #     - name: POSTGRES_PORT
+        #       value: '5432'
+        - name: order-consumer
           image: order:latest
           imagePullPolicy: Never
           resources:
@@ -37,7 +74,7 @@ spec:
               memory: "1Gi"
               cpu: "1"
           command: ["gunicorn"]
-          args: ["-b", "0.0.0.0:5000", "app:app"]
+          args: ["-b", "0.0.0.0:5000", "consumer:app"]
           ports:
             - containerPort: 5000
           env:
@@ -62,7 +99,7 @@ spec:
             - name: POSTGRES_DB
               value: "database"
             - name: POSTGRES_PORT
-              value: '5432'
+              value: '5432'              
 # POSTGRES_HOST=central-db
 # POSTGRES_PASSWORD=secret
 # POSTGRES_USER=username

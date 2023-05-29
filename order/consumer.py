@@ -1,8 +1,11 @@
 import os
+from flask import Flask
 import psycopg2
 import json
 from collections import deque
 from kafka import KafkaConsumer, KafkaProducer, TopicPartition
+
+app = Flask("order-consumer")
 
 ############################################ Data base set up ############################################
 
@@ -19,14 +22,14 @@ cursor = connector.cursor()
 ############################################ Kafka set up ############################################
 # TODO: finish
 producer = KafkaProducer(
-    boostrap_servers = 'kafka-1.kafka-headless.default.svc.cluster.local:9092,kafka-0.kafka-headless.default.svc.cluster.local:9092,kafka-2.kafka-headless.default.svc.cluster.local:9092',
+    bootstrap_servers = 'kafka-1.kafka-headless.default.svc.cluster.local:9092,kafka-0.kafka-headless.default.svc.cluster.local:9092,kafka-2.kafka-headless.default.svc.cluster.local:9092',
     value_serializer = lambda v: json.loads(v.decode('ascii')),
     key_serializer = lambda v: json.loads(v.decode('ascii')),
 )
 
 opsConsumer = KafkaConsumer(
     #client_id = get it from k8s?,
-    boostrap_servers = 'kafka.default.svc.cluster.local:9092',
+    bootstrap_servers = 'kafka.default.svc.cluster.local:9092',
     group_id = 'order_consumer',
     value_deserializer=lambda v: json.loads(v.decode('ascii')),
     key_deserializer=lambda v: json.loads(v.decode('ascii')),
@@ -136,7 +139,7 @@ def sendOutcomeMessages(pending: list):
 def getCommittedOffset(partitionNumber: int) -> int:
     
     consumer = KafkaConsumer(
-        # boostrap_servers = ?,
+        bootstrap_servers = 'kafka.default.svc.cluster.local:9092',
         value_deserializer=lambda v: json.loads(v.decode('ascii')),
         key_deserializer=lambda v: json.loads(v.decode('ascii'))
     )
@@ -169,7 +172,7 @@ def buildState(partitionsState: dict, partitionNumber: int, currentOffset: int):
     
     # consumer needed to read all messages from offset in state up to currentOffset
     consumer = KafkaConsumer(
-        # boostrap_servers = ?,
+        bootstrap_servers = 'kafka.default.svc.cluster.local:9092',
         value_deserializer=lambda v: json.loads(v.decode('ascii')),
         key_deserializer=lambda v: json.loads(v.decode('ascii'))
     )
@@ -205,7 +208,7 @@ def buildState(partitionsState: dict, partitionNumber: int, currentOffset: int):
 
     if commitOffset:
         producer = KafkaProducer(
-            # boostrap_servers = ?,
+            bootstrap_servers = 'kafka-1.kafka-headless.default.svc.cluster.local:9092,kafka-0.kafka-headless.default.svc.cluster.local:9092,kafka-2.kafka-headless.default.svc.cluster.local:9092',
             value_serializer = lambda v: json.loads(v.decode('ascii')),
             key_serializer = lambda v: json.loads(v.decode('ascii')),
         )

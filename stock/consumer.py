@@ -2,6 +2,9 @@ import os
 import psycopg2
 import json
 from kafka import KafkaConsumer, KafkaProducer
+from flask import Flask
+
+app = Flask("stock-consumer")
 
 ############################################ Data base set up ############################################
 
@@ -18,14 +21,14 @@ cursor = connector.cursor()
 ############################################ Kafka set up ############################################
 # TODO: finish
 producer = KafkaProducer(
-    boostrap_servers = 'kafka-1.kafka-headless.default.svc.cluster.local:9092,kafka-0.kafka-headless.default.svc.cluster.local:9092,kafka-2.kafka-headless.default.svc.cluster.local:9092',
+    bootstrap_servers = 'kafka-1.kafka-headless.default.svc.cluster.local:9092,kafka-0.kafka-headless.default.svc.cluster.local:9092,kafka-2.kafka-headless.default.svc.cluster.local:9092',
     value_serializer = lambda v: json.loads(v.decode('ascii')),
     key_serializer = lambda v: json.loads(v.decode('ascii')),
 )
 
 consumer = KafkaConsumer(
     #client_id = get it from k8s?,
-    boostrap_servers = 'kafka.default.svc.cluster.local:9092',
+    bootstrap_servers = 'kafka.default.svc.cluster.local:9092',
     group_id = 'stock_consumer',
     value_deserializer=lambda v: json.loads(v.decode('ascii')),
     key_deserializer=lambda v: json.loads(v.decode('ascii')),

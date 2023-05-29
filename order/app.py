@@ -16,7 +16,7 @@ db: redis.Redis = redis.Redis(host=os.environ['REDIS_HOST'],
                               db=int(os.environ['REDIS_DB']))
 
 order_db_conn = psycopg2.connect(
-    host=os.environ['POSTGRES_HOST_ORDER'],
+    host=os.environ['POSTGRES_HOST'],
     database=os.environ['POSTGRES_DB'],
     user=os.environ['POSTGRES_USER'],
     password=os.environ['POSTGRES_PASSWORD'],
@@ -24,32 +24,32 @@ order_db_conn = psycopg2.connect(
 
 order_db_cursor = order_db_conn.cursor()
 
-payment_db_conn = psycopg2.connect(
-    host=os.environ['POSTGRES_HOST_PAYMENT'],
-    database=os.environ['POSTGRES_DB'],
-    user=os.environ['POSTGRES_USER'],
-    password=os.environ['POSTGRES_PASSWORD'],
-    port=os.environ['POSTGRES_PORT'])
+# payment_db_conn = psycopg2.connect(
+#     host=os.environ['POSTGRES_HOST_PAYMENT'],
+#     database=os.environ['POSTGRES_DB'],
+#     user=os.environ['POSTGRES_USER'],
+#     password=os.environ['POSTGRES_PASSWORD'],
+#     port=os.environ['POSTGRES_PORT'])
 
-payment_db_cursor = payment_db_conn.cursor()
+# payment_db_cursor = payment_db_conn.cursor()
 
-stock_db_conn = psycopg2.connect(
-    host=os.environ['POSTGRES_HOST_STOCK'],
-    database=os.environ['POSTGRES_DB'],
-    user=os.environ['POSTGRES_USER'],
-    password=os.environ['POSTGRES_PASSWORD'],
-    port=os.environ['POSTGRES_PORT'])
+# stock_db_conn = psycopg2.connect(
+#     host=os.environ['POSTGRES_HOST_STOCK'],
+#     database=os.environ['POSTGRES_DB'],
+#     user=os.environ['POSTGRES_USER'],
+#     password=os.environ['POSTGRES_PASSWORD'],
+#     port=os.environ['POSTGRES_PORT'])
 
-stock_db_cursor = stock_db_conn.cursor()
+# stock_db_cursor = stock_db_conn.cursor()
 
 def close_db_connection():
     db.close()
     order_db_conn.close()
     order_db_cursor.close()
-    payment_db_conn.close()
-    payment_db_cursor.close()
-    stock_db_conn.close()
-    stock_db_cursor.close()
+    # payment_db_conn.close()
+    # payment_db_cursor.close()
+    # stock_db_conn.close()
+    # stock_db_cursor.close()
 
 atexit.register(close_db_connection)
 
@@ -62,30 +62,30 @@ def get_all():
     return {"order": order}, 200
 
 
-@app.post('/create/<user_id>')
-def create_order(user_id):
-    #Find user, can maybe remove this to speed up the process
-    sql_statement = """SELECT * FROM payment WHERE user_id = %s;"""
-    try:
-        payment_db_cursor.execute(sql_statement, (user_id,))
-        user = payment_db_cursor.fetchone()
-        if not user:
-            return {"error": "User not found"}, 400
-    except psycopg2.DatabaseError as error:
-        print(error)
-        return {"error": "Error finding user"}, 400
+# @app.post('/create/<user_id>')
+# def create_order(user_id):
+#     #Find user, can maybe remove this to speed up the process
+#     sql_statement = """SELECT * FROM payment WHERE user_id = %s;"""
+#     try:
+#         payment_db_cursor.execute(sql_statement, (user_id,))
+#         user = payment_db_cursor.fetchone()
+#         if not user:
+#             return {"error": "User not found"}, 400
+#     except psycopg2.DatabaseError as error:
+#         print(error)
+#         return {"error": "Error finding user"}, 400
 
-    sql_statement = """INSERT INTO order_table (user_id, paid, items, total_price) 
-                       VALUES (%s, %s, %s::items[], %s) RETURNING order_id;"""
-    try:
-        order_db_cursor.execute(sql_statement, (user_id, 'not_paid', [], 0))
-        order_id_of_new_row = order_db_cursor.fetchone()[0]
-        order_db_conn.commit()
-    except psycopg2.DatabaseError as error:
-        print(error)
-        return {"error": "User id not found"}, 400
+#     sql_statement = """INSERT INTO order_table (user_id, paid, items, total_price) 
+#                        VALUES (%s, %s, %s::items[], %s) RETURNING order_id;"""
+#     try:
+#         order_db_cursor.execute(sql_statement, (user_id, 'not_paid', [], 0))
+#         order_id_of_new_row = order_db_cursor.fetchone()[0]
+#         order_db_conn.commit()
+#     except psycopg2.DatabaseError as error:
+#         print(error)
+#         return {"error": "User id not found"}, 400
     
-    return {"order_id": order_id_of_new_row}, 200
+#     return {"order_id": order_id_of_new_row}, 200
 
 
 @app.delete('/remove/<order_id>')
@@ -102,84 +102,84 @@ def remove_order(order_id):
     return {'success': f"Removed order {order_id}"}, 200
 
 
-@app.post('/addItem/<order_id>/<item_id>')
-def add_item(order_id, item_id):
-    try:
-        # Check if order exists
-        sql_statement = """SELECT * FROM order_table WHERE order_id = %s;"""
-        order_db_cursor.execute(sql_statement, (order_id,))
-        order = order_db_cursor.fetchone()
-        if not order:
-            return {"error": "Order not found"}, 400
+# @app.post('/addItem/<order_id>/<item_id>')
+# def add_item(order_id, item_id):
+#     try:
+#         # Check if order exists
+#         sql_statement = """SELECT * FROM order_table WHERE order_id = %s;"""
+#         order_db_cursor.execute(sql_statement, (order_id,))
+#         order = order_db_cursor.fetchone()
+#         if not order:
+#             return {"error": "Order not found"}, 400
 
-        # Optional: this db access can be removed for making this app faster, 
-        # the `update_order_items_query_add` already searches for the price
-        # NOTE however that removing this will cause the error code of 400 to not be returned
-        # Prof Asterios said that was ok though
-        # Check if item exists and retrieve its price
-        sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
-        stock_db_cursor.execute(sql_statement, (item_id,))
-        item = stock_db_cursor.fetchone()
-        if not item:
-            return {"error": "Item not found"}, 400
+#         # Optional: this db access can be removed for making this app faster, 
+#         # the `update_order_items_query_add` already searches for the price
+#         # NOTE however that removing this will cause the error code of 400 to not be returned
+#         # Prof Asterios said that was ok though
+#         # Check if item exists and retrieve its price
+#         sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
+#         stock_db_cursor.execute(sql_statement, (item_id,))
+#         item = stock_db_cursor.fetchone()
+#         if not item:
+#             return {"error": "Item not found"}, 400
 
-        # price = item[0]
-        update_order_items_query_add = sql.SQL("""
-            UPDATE order_table  
-            SET items = (
-                SELECT CASE
-                    WHEN EXISTS (
-                        SELECT 1
-                        FROM UNNEST(items) AS item
-                        WHERE item.item_id = %s
-                    )
-                    THEN array_agg(
-                        CASE
-                            WHEN item.item_id = %s THEN ROW(item.item_id, item.amount + 1, item.unit_price)::items
-                            ELSE item
-                        END
-                    )
-                    ELSE CASE
-                        WHEN (SELECT COUNT(*) FROM stock WHERE item_id = %s) > 0 THEN
-                            array_agg(item) || (
-                                SELECT (%s, 1, unit_price)::items
-                                FROM stock
-                                WHERE item_id = %s
-                            )
-                        ELSE
-                            array_agg(item)
-                        END
-                END
-                FROM UNNEST(items) AS item
-            )
-            WHERE order_id = %s;
-        """)
+#         # price = item[0]
+#         update_order_items_query_add = sql.SQL("""
+#             UPDATE order_table  
+#             SET items = (
+#                 SELECT CASE
+#                     WHEN EXISTS (
+#                         SELECT 1
+#                         FROM UNNEST(items) AS item
+#                         WHERE item.item_id = %s
+#                     )
+#                     THEN array_agg(
+#                         CASE
+#                             WHEN item.item_id = %s THEN ROW(item.item_id, item.amount + 1, item.unit_price)::items
+#                             ELSE item
+#                         END
+#                     )
+#                     ELSE CASE
+#                         WHEN (SELECT COUNT(*) FROM stock WHERE item_id = %s) > 0 THEN
+#                             array_agg(item) || (
+#                                 SELECT (%s, 1, unit_price)::items
+#                                 FROM stock
+#                                 WHERE item_id = %s
+#                             )
+#                         ELSE
+#                             array_agg(item)
+#                         END
+#                 END
+#                 FROM UNNEST(items) AS item
+#             )
+#             WHERE order_id = %s;
+#         """)
         
-        # Add item to order's items and update total price
-        update_order_total_price_query = sql.SQL("""
-                UPDATE order_table
-                SET total_price = (
-                    SELECT SUM((item.amount * item.unit_price))
-                    FROM UNNEST(items) AS item
-                )
-                WHERE order_id = %s;
-            """)
+#         # Add item to order's items and update total price
+#         update_order_total_price_query = sql.SQL("""
+#                 UPDATE order_table
+#                 SET total_price = (
+#                     SELECT SUM((item.amount * item.unit_price))
+#                     FROM UNNEST(items) AS item
+#                 )
+#                 WHERE order_id = %s;
+#             """)
         
-        order_db_cursor.execute(update_order_items_query_add, (item_id, item_id, item_id, item_id, item_id, order_id))
-        order_db_cursor.execute(update_order_total_price_query, (order_id,))
-        order_db_conn.commit()
+#         order_db_cursor.execute(update_order_items_query_add, (item_id, item_id, item_id, item_id, item_id, order_id))
+#         order_db_cursor.execute(update_order_total_price_query, (order_id,))
+#         order_db_conn.commit()
         
-        # sql_statement = """ UPDATE order_table
-        #                     SET items = items || ROW(%s, 1, %s)::items, total_price = total_price + %s
-        #                     WHERE order_id = %s; """
-        # order_db_cursor.execute(sql_statement, (item_id, price, price, order_id))
+#         # sql_statement = """ UPDATE order_table
+#         #                     SET items = items || ROW(%s, 1, %s)::items, total_price = total_price + %s
+#         #                     WHERE order_id = %s; """
+#         # order_db_cursor.execute(sql_statement, (item_id, price, price, order_id))
 
-        # order_db_conn.commit()
-    except psycopg2.DatabaseError as error:
-        print(error)
-        return {"error": "Something went wrong during adding an item"}, 500
+#         # order_db_conn.commit()
+#     except psycopg2.DatabaseError as error:
+#         print(error)
+#         return {"error": "Something went wrong during adding an item"}, 500
     
-    return {"success": f"Added item {item_id} to order {order_id}"}, 200
+#     return {"success": f"Added item {item_id} to order {order_id}"}, 200
 
 
 @app.delete('/removeItem/<order_id>/<item_id>')
@@ -282,7 +282,7 @@ def checkout(order_id):
         order_db_conn.commit()
 
         producer = KafkaProducer(
-            boostrap_servers = 'kafka-1.kafka-headless.default.svc.cluster.local:9092,kafka-0.kafka-headless.default.svc.cluster.local:9092,kafka-2.kafka-headless.default.svc.cluster.local:9092',
+            bootstrap_servers = 'kafka-1.kafka-headless.default.svc.cluster.local:9092,kafka-0.kafka-headless.default.svc.cluster.local:9092,kafka-2.kafka-headless.default.svc.cluster.local:9092',
             value_serializer = lambda v: json.loads(v.decode('ascii')),
             key_serializer = lambda v: json.loads(v.decode('ascii')),
         )
@@ -310,7 +310,7 @@ def checkout(order_id):
         partition = metadata.partition
 
         consumer = KafkaConsumer(
-            boostrap_servers = 'kafka.default.svc.cluster.local:9092',
+            bootstrap_servers = 'kafka.default.svc.cluster.local:9092',
             value_deserializer=lambda v: json.loads(v.decode('ascii')),
             key_deserializer=lambda v: json.loads(v.decode('ascii')),
             auto_offset_reset='latest',
