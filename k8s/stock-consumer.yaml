@@ -14,7 +14,7 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: stock-deployment
+  name: stock-consumer-deployment
 spec:
   replicas: 1
   selector:
