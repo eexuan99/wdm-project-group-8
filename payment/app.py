@@ -11,14 +11,14 @@ db: redis.Redis = redis.Redis(host=os.environ['REDIS_HOST'],
                               password=os.environ['REDIS_PASSWORD'],
                               db=int(os.environ['REDIS_DB']))
 
-order_db_conn = psycopg2.connect(
-    host=os.environ['POSTGRES_HOST_ORDER'],
-    database=os.environ['POSTGRES_DB'],
-    user=os.environ['POSTGRES_USER'],
-    password=os.environ['POSTGRES_PASSWORD'],
-    port=os.environ['POSTGRES_PORT'])
+# order_db_conn = psycopg2.connect(
+#     host=os.environ['POSTGRES_HOST_ORDER'],
+#     database=os.environ['POSTGRES_DB'],
+#     user=os.environ['POSTGRES_USER'],
+#     password=os.environ['POSTGRES_PASSWORD'],
+#     port=os.environ['POSTGRES_PORT'])
 
-order_db_cursor = order_db_conn.cursor()
+# order_db_cursor = order_db_conn.cursor()
 
 payment_db_conn = psycopg2.connect(
     host=os.environ['POSTGRES_HOST_PAYMENT'],
@@ -31,8 +31,8 @@ payment_db_cursor = payment_db_conn.cursor()
 
 def close_db_connection():
     db.close()
-    order_db_cursor.close()
-    order_db_conn.close()
+    # order_db_cursor.close()
+    # order_db_conn.close()
     payment_db_cursor.close()
     payment_db_conn.close()
 
@@ -124,19 +124,19 @@ def remove_credit(user_id: str, order_id: str, amount: int):
     return {"success": f"Subtracted {amount} of credit to user {user_id}"}, 200
 
 
-@app.post('/cancel/<user_id>/<order_id>')
-def cancel_payment(user_id: str, order_id: str):
-    sql_statement = """UPDATE order_table
-                        SET status = 'cancelled'
-                        WHERE user_id = %s AND order_id = %s;"""
-    try: 
-        order_db_cursor.execute(sql_statement, (user_id, order_id))
-        order_db_conn.commit()
-    except psycopg2.DatabaseError as error:
-        print(error)
-        return {"error": "Error cancelling payment"}, 400
+# @app.post('/cancel/<user_id>/<order_id>')
+# def cancel_payment(user_id: str, order_id: str):
+#     sql_statement = """UPDATE order_table
+#                         SET status = 'cancelled'
+#                         WHERE user_id = %s AND order_id = %s;"""
+#     try: 
+#         order_db_cursor.execute(sql_statement, (user_id, order_id))
+#         order_db_conn.commit()
+#     except psycopg2.DatabaseError as error:
+#         print(error)
+#         return {"error": "Error cancelling payment"}, 400
     
-    return {"success": f"Order {order_id} cancelled"}, 200
+#     return {"success": f"Order {order_id} cancelled"}, 200
 
 
 @app.post('/status/<user_id>/<order_id>')
