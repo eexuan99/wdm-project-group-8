@@ -18,14 +18,14 @@ cursor = connector.cursor()
 ############################################ Kafka set up ############################################
 # TODO: finish
 producer = KafkaProducer(
-    # boostrap_servers = ?,
+    boostrap_servers = 'kafka-1.kafka-headless.default.svc.cluster.local:9092,kafka-0.kafka-headless.default.svc.cluster.local:9092,kafka-2.kafka-headless.default.svc.cluster.local:9092',
     value_serializer = lambda v: json.loads(v.decode('ascii')),
     key_serializer = lambda v: json.loads(v.decode('ascii')),
 )
 
 consumer = KafkaConsumer(
     #client_id = get it from k8s?,
-    # boostrap_servers = ?,
+    boostrap_servers = 'kafka.default.svc.cluster.local:9092',
     group_id = 'pay_consumer',
     value_deserializer=lambda v: json.loads(v.decode('ascii')),
     key_deserializer=lambda v: json.loads(v.decode('ascii')),

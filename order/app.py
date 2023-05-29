@@ -282,7 +282,7 @@ def checkout(order_id):
         order_db_conn.commit()
 
         producer = KafkaProducer(
-            # boostrap_servers = ?,
+            boostrap_servers = 'kafka-1.kafka-headless.default.svc.cluster.local:9092,kafka-0.kafka-headless.default.svc.cluster.local:9092,kafka-2.kafka-headless.default.svc.cluster.local:9092',
             value_serializer = lambda v: json.loads(v.decode('ascii')),
             key_serializer = lambda v: json.loads(v.decode('ascii')),
         )
@@ -310,7 +310,7 @@ def checkout(order_id):
         partition = metadata.partition
 
         consumer = KafkaConsumer(
-            # boostrap_servers = ?,
+            boostrap_servers = 'kafka.default.svc.cluster.local:9092',
             value_deserializer=lambda v: json.loads(v.decode('ascii')),
             key_deserializer=lambda v: json.loads(v.decode('ascii')),
             auto_offset_reset='latest',
