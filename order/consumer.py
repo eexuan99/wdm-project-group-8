@@ -36,7 +36,7 @@ opsConsumer = KafkaConsumer(
     auto_offset_reset='earliest',
 )
 
-opsConsumer.subscribe(topics=['outcomes'])
+opsConsumer.subscribe(topics=['Outcomes-topic'])
 
 
 ############################################ Partition state class ############################################
@@ -89,7 +89,7 @@ def sendOutcomeMessages(pending: list):
     # If both operation succeded:
     if m1.value['type'][1:] == m2.value['type'][1:] == 'succ':
         producer.send(
-            'outcomes',
+            'Outcomes-topic',
             key = m1.key,
             value = {
                 'type': 'trsucc'
@@ -102,7 +102,7 @@ def sendOutcomeMessages(pending: list):
         return
 
     producer.send(
-        'outcomes',
+        'Outcomes-topic',
         key = m1.key,
         value = {
             'type': 'trfail'
@@ -122,8 +122,8 @@ def sendOutcomeMessages(pending: list):
         nonFailed = m1
     
     match nonFailed.value['type'][0]:
-        case 'p': type, topic = 'can', 'pay'
-        case 's': type, topic = 'add', 'stock'
+        case 'p': type, topic = 'can', 'Pay-topic'
+        case 's': type, topic = 'add', 'Stock-topic'
 
     value = nonFailed.value.copy()
     value['type'] = type
@@ -135,7 +135,7 @@ def sendOutcomeMessages(pending: list):
     )
 
 
-# Fetches the last message from outc_offs (from specified partition) and returns it
+# Fetches the last message from Outc-offs-topic (from specified partition) and returns it
 def getCommittedOffset(partitionNumber: int) -> int:
     
     consumer = KafkaConsumer(
@@ -144,7 +144,7 @@ def getCommittedOffset(partitionNumber: int) -> int:
         key_deserializer=lambda v: json.loads(v.decode('ascii'))
     )
 
-    topicPartition = TopicPartition('outc_offs', partitionNumber)
+    topicPartition = TopicPartition('Outc-offs-topic', partitionNumber)
     
     end_offsets = consumer.end_offsets([topicPartition])
 
@@ -177,24 +177,24 @@ def buildState(partitionsState: dict, partitionNumber: int, currentOffset: int):
         key_deserializer=lambda v: json.loads(v.decode('ascii'))
     )
 
-    partition = TopicPartition('outcomes', partitionNumber)
+    partition = TopicPartition('Outcomes-topic', partitionNumber)
     consumer.assign([partition])
     consumer.seek(partition, state.offset_to_read)
     
     for msg in consumer:
         
         # > just in the case that asynch commit did not commit the offsets of read messages 
-        # before the consumer died, but after the consumer pushed an offset to outc_offs
+        # before the consumer died, but after the consumer pushed an offset to Outc-offs-topic
         if msg.offset >= currentOffset:
             state.offset_to_read = msg.offset
             break
         
         addMessageToState(msg, partitionsState)
     
-    # if there is no new offset to push to outc_offs
+    # if there is no new offset to push to Outc-offs-topic
     if len(state.tr_start_offset) == 0: return
 
-    # check whether anything has to be pushed to outc_offs at all
+    # check whether anything has to be pushed to Outc-offs-topic at all
     commitOffset = None
     while(state.tr_start_offset[0] in state.tr_done):
         state.tr_done.remove(state.tr_start_offset[0] )
@@ -213,7 +213,7 @@ def buildState(partitionsState: dict, partitionNumber: int, currentOffset: int):
             key_serializer = lambda v: json.loads(v.decode('ascii')),
         )
         producer.send(
-            'outc_offs',
+            'Outc-offs-topic',
             value={ 'offset':commitOffset },
             partition=partitionNumber
         )

@@ -298,7 +298,7 @@ def checkout(order_id):
         } for id, amnt, _ in items]
 
         future = producer.send(
-            'stock',
+            'Stock-topic',
             key= key,
             value = {
                 'tr_type': 'sub',
@@ -315,10 +315,10 @@ def checkout(order_id):
             key_deserializer=lambda v: json.loads(v.decode('ascii')),
             auto_offset_reset='latest',
         )
-        consumer.assign([TopicPartition('outcomes', partition)])
+        consumer.assign([TopicPartition('Outcomes-topic', partition)])
 
         producer.send(
-            'pay',
+            'Pay-topic',
             key= key,
             value = {
                 'tr_type': 'pay',
