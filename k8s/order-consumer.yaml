@@ -1,32 +1,32 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: order-service
-spec:
-  type: ClusterIP
-  selector:
-    component: order
-  ports:
-    - port: 5000
-      name: http
-      targetPort: 5000
----
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: order-consumer
+# spec:
+#   type: ClusterIP
+#   selector:
+#     component: order-consumer
+#   ports:
+#     - port: 5000
+#       name: http
+#       targetPort: 5000
+# ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: order-deployment
+  name: order-consumer-deployment
 spec:
   replicas: 1
   selector:
     matchLabels:
-      component: order
+      component: order-consumer
   template:
     metadata:
       labels:
-        component: order
+        component: order-consumer
     spec:
       containers:
-        - name: order
+        - name: order-consumer
           image: order:latest
           imagePullPolicy: Never
           resources:
@@ -37,7 +37,7 @@ spec:
               memory: "1Gi"
               cpu: "1"
           command: ["gunicorn"]
-          args: ["-b", "0.0.0.0:5000", "app:app"]
+          args: ["-b", "0.0.0.0:5000", "consumer:app"]
           ports:
             - containerPort: 5000
           env:
@@ -62,9 +62,4 @@ spec:
             - name: POSTGRES_DB
               value: "database"
             - name: POSTGRES_PORT
-              value: '5432'           
-# POSTGRES_HOST=central-db
-# POSTGRES_PASSWORD=secret
-# POSTGRES_USER=username
-# POSTGRES_DB=database
-# POSTGRES_PORT=5432
+              value: '5432'   
