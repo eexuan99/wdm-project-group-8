@@ -1,6 +1,6 @@
 # Topics
 
-## Pay
+## Pay-topic
 #### Description:
 It will hold all messages needed to checkout or rollback a transaction pay
 
@@ -13,9 +13,9 @@ It will hold all messages needed to checkout or rollback a transaction pay
 
 #### Messages:
 - pay (key: "orderid_tr#", value: ('pay', amnt))
-- cancelPayment (key: "orderid_tr#", value: ('cancel_pay', amnt))
+- cancelPayment (key: "orderid_tr#", value: ('can', amnt))
 
-## Stock
+## Stock-topic
 #### Description:
 It will hold all messages needed decrement or increment all quantities needed for a transaction. Per transaction there are at most two messages:
     - one to decrement quantities for all items in an order
@@ -32,7 +32,7 @@ It will hold all messages needed decrement or increment all quantities needed fo
 - decrement (key: "orderid_tr#", value: ('decrement', [(item, amnt), ... ]))
 - increment (key: "orderid_tr#", value: ('increment', [(item, amnt), ... ]))
 
-## Outcome P&S (ops)
+## Outcomes-topic
 #### Description:
 It holds success or failure messages produced by pay consumer and stock consumer relative to their changes in db
 
@@ -50,7 +50,7 @@ It holds success or failure messages produced by pay consumer and stock consumer
 - stockFail     (key: "orderid_tr#", value: ('sfail', [(item, amnt), ... ]))
 
 
-## Outcome checkout (oc)
+<!-- ## Outcome checkout (oc)
 #### Description:
 It holds messages relative to the success or failure of transactions as a whole
 
@@ -62,9 +62,9 @@ It holds messages relative to the success or failure of transactions as a whole
 
 #### Messages:
 - success (key: "orderid_tr#", value: 'success')
-- fail (key: "orderid_tr#", value: 'fail')
+- fail (key: "orderid_tr#", value: 'fail') -->
 
-## Offsets Outcome P&S (oops)
+## Outc-offs-topic
 #### Description:
 Per partition it holds the offset of the start of the oldest transaction not fully processed. Order consumers have to:
 - read messages from **ops**
