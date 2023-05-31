@@ -74,8 +74,7 @@ def remove_order(order_id):
     
     return {'success': f"Removed order {order_id}"}, 200
 
-#TODO: add stock > 0 [not necessary]
-# use /stoc/{item}
+
 @app.post('/addItem/<order_id>/<item_id>')
 def add_item(order_id, item_id):
     try:
@@ -180,11 +179,11 @@ def remove_item(order_id, item_id):
 
         # This step is OPTIONAL we can remove it to speed things up since db access is slow and expensive: 
         # Check if item exists and retrieve its price
-        sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
-        central_db_cursor.execute(sql_statement, (item_id,))
-        item = central_db_cursor.fetchone()
-        if not item:
-            return {"error": "Item with this item_id does not exist in stock table"}, 400
+        # sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
+        # central_db_cursor.execute(sql_statement, (item_id,))
+        # item = central_db_cursor.fetchone()
+        # if not item:
+        #     return {"error": "Item with this item_id does not exist in stock table"}, 400
         
         # NOTE:TODO we do not yet check whether 
         # an item exists in the items[] array / shopping cart when we delete it
@@ -208,6 +207,7 @@ def remove_item(order_id, item_id):
         """)
 
         # Add item to order's items and update total price
+        #TODO: NOT sure if it makes more sense here to update or to add/minus
         update_order_total_price_query = sql.SQL("""
                 UPDATE order_table
                 SET total_price = (
@@ -217,7 +217,7 @@ def remove_item(order_id, item_id):
                 WHERE order_id = %s;
             """)
         central_db_cursor.execute(update_order_items_query_remove, (item_id, item_id, order_id))
-        central_db_cursor.execute(update_order_total_price_query, (order_id,))
+        central_db_cursor.execute(update_order_total_price_query, (price, order_id,))
         central_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
