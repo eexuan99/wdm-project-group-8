@@ -3,7 +3,6 @@ import atexit
 import redis
 import psycopg2
 import re
-
 import requests
 from flask import Flask, request, jsonify
 from psycopg2 import sql
@@ -11,8 +10,6 @@ from psycopg2 import sql
 app = Flask("order-service")
 
 redis_client: redis.Redis = redis.Redis(host='redis_client', port=6379)
-    # redis.Redis(host=os.environ['REDIS_HOST'],
-    #                           port=int(os.environ['REDIS_PORT']))
 
 central_db_conn = psycopg2.connect(
     host=os.environ['POSTGRES_HOST'],
@@ -28,10 +25,18 @@ def close_db_connection():
     central_db_cursor.close()
     central_db_conn.close()
 
-
 atexit.register(close_db_connection)
 
-@app.post('/test')
+# Just a simple get all function so we can use this instead of pgadmin
+@app.get('/getall')
+def get_all():
+    sql_statement = """SELECT * FROM order_table;"""
+    central_db_cursor.execute(sql_statement)
+    order = central_db_cursor.fetchall()    
+    return {"order": order}, 200
+
+# Testing redis function
+@app.post('/redis')
 def ping():
     response = redis_client.ping()
     if response:
@@ -39,6 +44,8 @@ def ping():
     else:
         return("Failed to connect to Redis")
 
+
+# TODO: We are not currently checking if user exists.
 @app.post('/create/<user_id>')
 def create_order(user_id):
     sql_statement = """INSERT INTO order_table (user_id, paid, items, total_price) 
@@ -67,7 +74,9 @@ def remove_order(order_id):
     
     return {'success': f"Removed order {order_id}"}, 200
 
-
+#TODO: Is currently not adding items
+#TODO: add stock > 0
+# use /stoc/{item}
 @app.post('/addItem/<order_id>/<item_id>')
 def add_item(order_id, item_id):
     try:
@@ -83,7 +92,6 @@ def add_item(order_id, item_id):
         else:
             price = get_item_price(item_id)['price']
             set_value(item_id, price)
-
         update_order_total_price_query = sql.SQL("""
                 UPDATE order_table
                 SET total_price = total_price + %s
@@ -98,7 +106,8 @@ def add_item(order_id, item_id):
         # # the `update_order_items_query_add` already searches for the price
         # # NOTE however that removing this will cause the error code of 400 to not be returned
         # # Prof Asterios said that was ok though
-        # # Check if item exists and retrieve its price
+
+        # Check if item exists and retrieve its price
         # sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
         # central_db_cursor.execute(sql_statement, (item_id,))
         # item = central_db_cursor.fetchone()
@@ -136,7 +145,7 @@ def add_item(order_id, item_id):
         #     )
         #     WHERE order_id = %s;
         # """)
-        #
+        
         # # Add item to order's items and update total price
         # update_order_total_price_query = sql.SQL("""
         #         UPDATE order_table
@@ -150,7 +159,7 @@ def add_item(order_id, item_id):
         # central_db_cursor.execute(update_order_items_query_add, (item_id, item_id, item_id, item_id, item_id, order_id))
         # central_db_cursor.execute(update_order_total_price_query, (order_id,))
         # central_db_conn.commit()
-        #
+        
         # sql_statement = """ UPDATE order_table
         #                     SET items = items || ROW(%s, 1, %s)::items, total_price = total_price + %s
         #                     WHERE order_id = %s; """
@@ -174,12 +183,12 @@ def get_item_price(item_id: int):
 def set_value(key, value):
     redis_client.set(key, value)
     return 'Value added to Redis'
-
+    
 def get_value(key):
     value = redis_client.get(key)
     if value is None:
         return 'Key not found in Redis'
-    return f'The value for key {key} is {value.decode()}'
+    return int(value.decode())
 
 @app.delete('/removeItem/<order_id>/<item_id>')
 def remove_item(order_id, item_id):
@@ -244,7 +253,6 @@ def remove_item(order_id, item_id):
 def find_order(order_id):
     try:
         sql_statement = """SELECT * FROM order_table WHERE order_id = %s;"""
-        print(type(order_id))
         central_db_cursor.execute(sql_statement, (order_id,))
         order = central_db_cursor.fetchone()
         if not order:
@@ -310,3 +318,17 @@ def parse_items(items_str):
 def parse_integer(str):
     return int(re.sub("[^0-9]", "", str))
 
+######### GETS CALLED BY THE ORDER MICROSERVICE #########
+@app.get('/cancel_payment//<user_id>/<order_id>')
+def cancel_payment(user_id: int, order_id: int):
+    sql_statement = """UPDATE order_table
+                        SET status = 'cancelled'
+                        WHERE user_id = %s AND order_id = %s;"""
+    try: 
+        central_db_cursor.execute(sql_statement, (user_id, order_id))
+        central_db_conn.commit()
+    except psycopg2.DatabaseError as error:
+        print(error)
+        return {"error": "Error cancelling payment"}, 400
+    
+    return {"success": f"Order {order_id} cancelled"}, 200

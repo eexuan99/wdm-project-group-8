@@ -6,10 +6,7 @@ from flask import Flask, request
 
 app = Flask("payment-service")
 
-db: redis.Redis = redis.Redis(host=os.environ['REDIS_HOST'],
-                              port=int(os.environ['REDIS_PORT']),
-                              password=os.environ['REDIS_PASSWORD'],
-                              db=int(os.environ['REDIS_DB']))
+redis_client: redis.Redis = redis.Redis(host='redis_client', port=6379)
 
 central_db_conn = psycopg2.connect(
     host=os.environ['POSTGRES_HOST'],
@@ -21,12 +18,28 @@ central_db_conn = psycopg2.connect(
 central_db_cursor = central_db_conn.cursor()
 
 def close_db_connection():
-    db.close()
+    redis_client.close()
     central_db_cursor.close()
     central_db_conn.close()
 
-
 atexit.register(close_db_connection)
+
+# Just a simple get all function so we can use this instead of pgadmin
+@app.get('/getall')
+def get_all():
+    sql_statement = """SELECT * FROM payment;"""
+    central_db_cursor.execute(sql_statement)
+    user = central_db_cursor.fetchall()    
+    return {"user": user}, 200
+
+# Testing redis function
+@app.post('/redis')
+def ping():
+    response = redis_client.ping()
+    if response:
+        return("Connected to Redis successfully")
+    else:
+        return("Failed to connect to Redis")
 
 
 @app.post('/create_user')
