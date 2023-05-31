@@ -74,12 +74,13 @@ def remove_order(order_id):
     
     return {'success': f"Removed order {order_id}"}, 200
 
-#TODO: Is currently not adding items
-#TODO: add stock > 0
+#TODO: add stock > 0 [not necessary]
 # use /stoc/{item}
 @app.post('/addItem/<order_id>/<item_id>')
 def add_item(order_id, item_id):
     try:
+
+        #TODO: NEED TO CHECK HERE FIRST IF EXISTS IN REDIS THEN GET ITEM ID OTHERWISE CALL THIS SQL STATEMENT AND GET PRICE.
         # Check if order exists
         sql_statement = """SELECT * FROM order_table WHERE order_id = %s;"""
         central_db_cursor.execute(sql_statement, (order_id,))
@@ -87,78 +88,55 @@ def add_item(order_id, item_id):
         if not order:
             return {"error": "Order not found"}, 400
 
+
         if redis_client.exists(item_id):
             price = get_value(item_id)
         else:
             price = get_item_price(item_id)['price']
             set_value(item_id, price)
-        update_order_total_price_query = sql.SQL("""
-                UPDATE order_table
-                SET total_price = total_price + %s
-                WHERE order_id = %s;
-            """)
 
-        # central_db_cursor.execute(update_order_items_query_add, (item_id, item_id, item_id, item_id, item_id, order_id))
-        central_db_cursor.execute(update_order_total_price_query, (price, order_id))
-        central_db_conn.commit()
+        # Check if saved in 'cache' else add to cache, otherwise take value.
+
+
 
         # # Optional: this db access can be removed for making this app faster,
         # # the `update_order_items_query_add` already searches for the price
         # # NOTE however that removing this will cause the error code of 400 to not be returned
         # # Prof Asterios said that was ok though
 
-        # Check if item exists and retrieve its price
-        # sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
-        # central_db_cursor.execute(sql_statement, (item_id,))
-        # item = central_db_cursor.fetchone()
-        # if not item:
-        #     return {"error": "Item not found"}, 400
 
-        # # price = item[0]
-        # update_order_items_query_add = sql.SQL("""
-        #     UPDATE order_table
-        #     SET items = (
-        #         SELECT CASE
-        #             WHEN EXISTS (
-        #                 SELECT 1
-        #                 FROM UNNEST(items) AS item
-        #                 WHERE item.item_id = %s
-        #             )
-        #             THEN array_agg(
-        #                 CASE
-        #                     WHEN item.item_id = %s THEN ROW(item.item_id, item.amount + 1, item.unit_price)::items
-        #                     ELSE item
-        #                 END
-        #             )
-        #             ELSE CASE
-        #                 WHEN (SELECT COUNT(*) FROM stock WHERE item_id = %s) > 0 THEN
-        #                     array_agg(item) || (
-        #                         SELECT (%s, 1, unit_price)::items
-        #                         FROM stock
-        #                         WHERE item_id = %s
-        #                     )
-        #                 ELSE
-        #                     array_agg(item)
-        #                 END
-        #         END
-        #         FROM UNNEST(items) AS item
-        #     )
-        #     WHERE order_id = %s;
-        # """)
-        
-        # # Add item to order's items and update total price
-        # update_order_total_price_query = sql.SQL("""
-        #         UPDATE order_table
-        #         SET total_price = (
-        #             SELECT SUM((item.amount * item.unit_price))
-        #             FROM UNNEST(items) AS item
-        #         )
-        #         WHERE order_id = %s;
-        #     """)
-        
-        # central_db_cursor.execute(update_order_items_query_add, (item_id, item_id, item_id, item_id, item_id, order_id))
-        # central_db_cursor.execute(update_order_total_price_query, (order_id,))
-        # central_db_conn.commit()
+        ## this statement updates the 3-tuple, by looking for if item alr exists if so +1 to quantity. Else appends new 3-tuple with item id, quantity 1 and price
+        update_order_items_query_add = sql.SQL("""
+            UPDATE order_table
+            SET items = (
+                SELECT CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM UNNEST(items) AS item
+                        WHERE item.item_id = %s
+                    )
+                    THEN array_agg(
+                        CASE
+                            WHEN item.item_id = %s THEN ROW(item.item_id, item.amount + 1, item.unit_price)::items
+                            ELSE item
+                        END
+                    )
+                    ELSE array_agg(item) || ((%s, 1, %s)::items)
+                END -- Add the missing END keyword here
+                FROM UNNEST(items) AS item
+            )
+            WHERE order_id = %s;
+        """)
+
+        # Updates total order
+        update_order_total_price_query = sql.SQL("""
+                UPDATE order_table
+                SET total_price = total_price + %s
+                WHERE order_id = %s;
+            """)
+        central_db_cursor.execute(update_order_items_query_add, (item_id, item_id, item_id, price, order_id))
+        central_db_cursor.execute(update_order_total_price_query, (price, order_id))
+        central_db_conn.commit()
         
         # sql_statement = """ UPDATE order_table
         #                     SET items = items || ROW(%s, 1, %s)::items, total_price = total_price + %s
