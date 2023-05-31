@@ -112,7 +112,7 @@ def get_item_price(item_id: int):
     # Call other microservice
     sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
     try:
-        central_db_cursor.execute(sql_statement, item_id)
+        central_db_cursor.execute(sql_statement, (item_id,))
         item = central_db_cursor.fetchone()
         if not item:
             return {"error": "Item not found"}, 400

@@ -79,8 +79,6 @@ def remove_order(order_id):
 @app.post('/addItem/<order_id>/<item_id>')
 def add_item(order_id, item_id):
     try:
-
-        #TODO: NEED TO CHECK HERE FIRST IF EXISTS IN REDIS THEN GET ITEM ID OTHERWISE CALL THIS SQL STATEMENT AND GET PRICE.
         # Check if order exists
         sql_statement = """SELECT * FROM order_table WHERE order_id = %s;"""
         central_db_cursor.execute(sql_statement, (order_id,))
@@ -88,14 +86,15 @@ def add_item(order_id, item_id):
         if not order:
             return {"error": "Order not found"}, 400
 
-
+        # Check if saved in 'cache' else add to cache, otherwise take value.
         if redis_client.exists(item_id):
             price = get_value(item_id)
         else:
-            price = get_item_price(item_id)['price']
-            set_value(item_id, price)
+            price = get_item_price(item_id)
+            if price is None:
+                return {"error": "Item not found in Stock"}, 400
+            set_value(item_id, price['price'])
 
-        # Check if saved in 'cache' else add to cache, otherwise take value.
 
 
 
@@ -137,13 +136,7 @@ def add_item(order_id, item_id):
         central_db_cursor.execute(update_order_items_query_add, (item_id, item_id, item_id, price, order_id))
         central_db_cursor.execute(update_order_total_price_query, (price, order_id))
         central_db_conn.commit()
-        
-        # sql_statement = """ UPDATE order_table
-        #                     SET items = items || ROW(%s, 1, %s)::items, total_price = total_price + %s
-        #                     WHERE order_id = %s; """
-        # central_db_cursor.execute(sql_statement, (item_id, price, price, order_id))
 
-        # central_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
         return {"error": "Something went wrong during adding an item"}, 500
@@ -152,11 +145,17 @@ def add_item(order_id, item_id):
 
 # @app.get('/getPrice/<item_id>')
 def get_item_price(item_id: int):
-    # Call other microservice
-    req = requests.get(f"http://stock-service:5000/getPrice/{item_id}")
-    price = req.json()['price']
-    print(price)
-    return req.json()
+    try:
+        # Call other microservice
+        req = requests.get(f"http://stock-service:5000/getPrice/{item_id}")
+        req.raise_for_status()  # Raise an exception if the response status code is not successful
+        price = req.json()['price']
+        print(price)
+        return req.json()
+    except requests.exceptions.RequestException as e:
+        # Handle any exceptions thrown by the request
+        print("Error occurred during the request:", str(e))
+        return None
 
 def set_value(key, value):
     redis_client.set(key, value)
