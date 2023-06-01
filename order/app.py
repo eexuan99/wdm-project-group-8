@@ -4,16 +4,14 @@ import redis
 import psycopg2
 import re
 import json
-from flask import Flask
+import requests
+from flask import Flask, request, jsonify
 from psycopg2 import sql
 from kafka import KafkaConsumer, KafkaProducer, TopicPartition
 
 app = Flask("order-service")
 
-db: redis.Redis = redis.Redis(host=os.environ['REDIS_HOST'],
-                              port=int(os.environ['REDIS_PORT']),
-                              password=os.environ['REDIS_PASSWORD'],
-                              db=int(os.environ['REDIS_DB']))
+redis_client: redis.Redis = redis.Redis(host='redis_client', port=6379)
 
 order_db_conn = psycopg2.connect(
     host=os.environ['POSTGRES_HOST'],
@@ -24,32 +22,10 @@ order_db_conn = psycopg2.connect(
 
 order_db_cursor = order_db_conn.cursor()
 
-payment_db_conn = psycopg2.connect(
-    host=os.environ['POSTGRES_HOST_PAYMENT'],
-    database=os.environ['POSTGRES_DB'],
-    user=os.environ['POSTGRES_USER'],
-    password=os.environ['POSTGRES_PASSWORD'],
-    port=os.environ['POSTGRES_PORT'])
-
-payment_db_cursor = payment_db_conn.cursor()
-
-stock_db_conn = psycopg2.connect(
-    host=os.environ['POSTGRES_HOST_STOCK'],
-    database=os.environ['POSTGRES_DB'],
-    user=os.environ['POSTGRES_USER'],
-    password=os.environ['POSTGRES_PASSWORD'],
-    port=os.environ['POSTGRES_PORT'])
-
-stock_db_cursor = stock_db_conn.cursor()
-
 def close_db_connection():
-    db.close()
-    order_db_conn.close()
+    redis_client.close()
     order_db_cursor.close()
-    payment_db_conn.close()
-    payment_db_cursor.close()
-    stock_db_conn.close()
-    stock_db_cursor.close()
+    order_db_conn.close()
 
 atexit.register(close_db_connection)
 
@@ -58,22 +34,32 @@ atexit.register(close_db_connection)
 def get_all():
     sql_statement = """SELECT * FROM order_table;"""
     order_db_cursor.execute(sql_statement)
-    order = order_db_cursor.fetchall()    
+    order = order_db_cursor.fetchall()
     return {"order": order}, 200
 
+# Testing redis function
+@app.post('/redis')
+def ping():
+    response = redis_client.ping()
+    if response:
+        return("Connected to Redis successfully")
+    else:
+        return("Failed to connect to Redis")
 
+
+# TODO: We are not currently checking if user exists.
 @app.post('/create/<user_id>')
 def create_order(user_id):
     #Find user, can maybe remove this to speed up the process
-    sql_statement = """SELECT * FROM payment WHERE user_id = %s;"""
-    try:
-        payment_db_cursor.execute(sql_statement, (user_id,))
-        user = payment_db_cursor.fetchone()
-        if not user:
-            return {"error": "User not found"}, 400
-    except psycopg2.DatabaseError as error:
-        print(error)
-        return {"error": "Error finding user"}, 400
+    # sql_statement = """SELECT * FROM payment WHERE user_id = %s;"""
+    # try:
+    #     payment_db_cursor.execute(sql_statement, (user_id,))
+    #     user = payment_db_cursor.fetchone()
+    #     if not user:
+    #         return {"error": "User not found"}, 400
+    # except psycopg2.DatabaseError as error:
+    #     print(error)
+    #     return {"error": "Error finding user"}, 400
 
     sql_statement = """INSERT INTO order_table (user_id, p_status, items, total_price) 
                        VALUES (%s, %s, %s::items[], %s) RETURNING order_id;"""
@@ -112,20 +98,27 @@ def add_item(order_id, item_id):
         if not order:
             return {"error": "Order not found"}, 400
 
-        # Optional: this db access can be removed for making this app faster, 
-        # the `update_order_items_query_add` already searches for the price
-        # NOTE however that removing this will cause the error code of 400 to not be returned
-        # Prof Asterios said that was ok though
-        # Check if item exists and retrieve its price
-        sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
-        stock_db_cursor.execute(sql_statement, (item_id,))
-        item = stock_db_cursor.fetchone()
-        if not item:
-            return {"error": "Item not found"}, 400
+        # Check if saved in 'cache' else add to cache, otherwise take value.
+        if redis_client.exists(item_id):
+            price = get_value(item_id)
+        else:
+            price = get_item_price(item_id)
+            if price is None:
+                return {"error": "Item not found in Stock"}, 400
+            set_value(item_id, price['price'])
 
-        # price = item[0]
+
+
+
+        # # Optional: this db access can be removed for making this app faster,
+        # # the `update_order_items_query_add` already searches for the price
+        # # NOTE however that removing this will cause the error code of 400 to not be returned
+        # # Prof Asterios said that was ok though
+
+
+        ## this statement updates the 3-tuple, by looking for if item alr exists if so +1 to quantity. Else appends new 3-tuple with item id, quantity 1 and price
         update_order_items_query_add = sql.SQL("""
-            UPDATE order_table  
+            UPDATE order_table
             SET items = (
                 SELECT CASE
                     WHEN EXISTS (
@@ -139,48 +132,52 @@ def add_item(order_id, item_id):
                             ELSE item
                         END
                     )
-                    ELSE CASE
-                        WHEN (SELECT COUNT(*) FROM stock WHERE item_id = %s) > 0 THEN
-                            array_agg(item) || (
-                                SELECT (%s, 1, unit_price)::items
-                                FROM stock
-                                WHERE item_id = %s
-                            )
-                        ELSE
-                            array_agg(item)
-                        END
-                END
+                    ELSE array_agg(item) || ((%s, 1, %s)::items)
+                END -- Add the missing END keyword here
                 FROM UNNEST(items) AS item
             )
             WHERE order_id = %s;
         """)
-        
-        # Add item to order's items and update total price
+
+        # Updates total order
+        # NOTE: maybe test whats faster, this or using redis call
         update_order_total_price_query = sql.SQL("""
                 UPDATE order_table
-                SET total_price = (
-                    SELECT SUM((item.amount * item.unit_price))
-                    FROM UNNEST(items) AS item
-                )
+                SET total_price = total_price + %s
                 WHERE order_id = %s;
             """)
-        
-        order_db_cursor.execute(update_order_items_query_add, (item_id, item_id, item_id, item_id, item_id, order_id))
-        order_db_cursor.execute(update_order_total_price_query, (order_id,))
+        order_db_cursor.execute(update_order_items_query_add, (item_id, item_id, item_id, price, order_id))
+        order_db_cursor.execute(update_order_total_price_query, (price, order_id))
         order_db_conn.commit()
-        
-        # sql_statement = """ UPDATE order_table
-        #                     SET items = items || ROW(%s, 1, %s)::items, total_price = total_price + %s
-        #                     WHERE order_id = %s; """
-        # order_db_cursor.execute(sql_statement, (item_id, price, price, order_id))
-
-        # order_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
         return {"error": "Something went wrong during adding an item"}, 500
     
     return {"success": f"Added item {item_id} to order {order_id}"}, 200
 
+# @app.get('/getPrice/<item_id>')
+def get_item_price(item_id: int):
+    try:
+        # Call other microservice
+        req = requests.get(f"http://stock-service:5000/getPrice/{item_id}")
+        req.raise_for_status()  # Raise an exception if the response status code is not successful
+        price = req.json()['price']
+        print(price)
+        return req.json()
+    except requests.exceptions.RequestException as e:
+        # Handle any exceptions thrown by the request
+        print("Error occurred during the request:", str(e))
+        return None
+
+def set_value(key, value):
+    redis_client.set(key, value)
+    return 'Value added to Redis'
+    
+def get_value(key):
+    value = redis_client.get(key)
+    if value is None:
+        return 'Key not found in Redis'
+    return int(value.decode())
 
 @app.delete('/removeItem/<order_id>/<item_id>')
 def remove_item(order_id, item_id):
@@ -223,6 +220,7 @@ def remove_item(order_id, item_id):
         """)
 
         # Add item to order's items and update total price
+        #TODO: NOT sure if it makes more sense here to update or to add/minus
         update_order_total_price_query = sql.SQL("""
                 UPDATE order_table
                 SET total_price = (
@@ -245,7 +243,6 @@ def remove_item(order_id, item_id):
 def find_order(order_id):
     try:
         sql_statement = """SELECT * FROM order_table WHERE order_id = %s;"""
-        print(type(order_id))
         order_db_cursor.execute(sql_statement, (order_id,))
         order = order_db_cursor.fetchone()
         if not order:
@@ -262,8 +259,7 @@ def find_order(order_id):
 def checkout(order_id):
     try:
         sql_statement = """SELECT user_id, total_price, items, p_status FROM order_table WHERE order_id = %s;"""
-        
-        
+
         order_db_cursor.execute(sql_statement, (order_id,))
         order = order_db_cursor.fetchone()
         if not order:
@@ -339,6 +335,7 @@ def checkout(order_id):
         print(error)
         return {"error": "Something went wrong during checkout"}, 500
 
+
 def parse_items(items_str):
     items_str = items_str[1:-1]
     items_list = items_str.split(",")
@@ -350,3 +347,18 @@ def parse_items(items_str):
 
 def parse_integer(str):
     return int(re.sub("[^0-9]", "", str))
+
+######### GETS CALLED BY THE ORDER MICROSERVICE #########
+@app.get('/cancel_payment//<user_id>/<order_id>')
+def cancel_payment(user_id: int, order_id: int):
+    sql_statement = """UPDATE order_table
+                        SET status = 'cancelled'
+                        WHERE user_id = %s AND order_id = %s;"""
+    try: 
+        order_db_cursor.execute(sql_statement, (user_id, order_id))
+        order_db_conn.commit()
+    except psycopg2.DatabaseError as error:
+        print(error)
+        return {"error": "Error cancelling payment"}, 400
+    
+    return {"success": f"Order {order_id} cancelled"}, 200
