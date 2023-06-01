@@ -102,10 +102,11 @@ def add_item(order_id, item_id):
         if redis_client.exists(item_id):
             price = get_value(item_id)
         else:
-            price = get_item_price(item_id)
-            if price is None:
-                return {"error": "Item not found in Stock"}, 400
-            set_value(item_id, price['price'])
+            try:
+                price = get_item_price(item_id)['price']
+                set_value(item_id, price)
+            except requests.exceptions.RequestException:
+                return {"error": "An error occurred during the request"}, 400
 
 
 
@@ -167,7 +168,7 @@ def get_item_price(item_id: int):
     except requests.exceptions.RequestException as e:
         # Handle any exceptions thrown by the request
         print("Error occurred during the request:", str(e))
-        return None
+        raise
 
 def set_value(key, value):
     redis_client.set(key, value)
