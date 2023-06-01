@@ -1,41 +1,41 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: order-service
-spec:
-  type: ClusterIP
-  selector:
-    component: order
-  ports:
-    - port: 5000
-      name: http
-      targetPort: 5000
----
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: order-service
+# spec:
+#   type: ClusterIP
+#   selector:
+#     component: order
+#   ports:
+#     - port: 5000
+#       name: http
+#       targetPort: 5000
+# ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: order-deployment
+  name: kafka-pod
 spec:
   replicas: 1
   selector:
     matchLabels:
-      component: order
+      component: kafka-pod
   template:
     metadata:
       labels:
-        component: order
+        component: kafka-pod
     spec:
       containers:
-        - name: order
+        - name: kafka-pod
           image: kafkapod:latest
           imagePullPolicy: Never
           resources:
             limits:
-              memory: "1Gi"
-              cpu: "1"
+              memory: "200Mi"
+              # cpu: "1"
             requests:
-              memory: "1Gi"
-              cpu: "1"
+              memory: "200Mi"
+              # cpu: "1"
           command: ["gunicorn"]
           args: ["-b", "0.0.0.0:5000", "app:app"]
           ports:
