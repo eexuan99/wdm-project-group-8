@@ -4,7 +4,7 @@
 docker-compose build
 
 # start minikube and apply the deployment and ingresses
-minikube start
+minikube start # --memory=11900 --cpus=6
 
 # If not already enabled, add the ingress
 minikube addons enable ingress
@@ -14,6 +14,8 @@ helm repo add bitnami https://charts.bitnami.com/bitnami
 helm repo update
 
 # helm install my-postgresql -f helm-config/pstgresql-helm-values.yaml bitnami/postgresql
+
+helm install -f helm-config/redis-helm-values.yaml redis bitnami/redis
 
 helm install payment-db -f helm-config/payment_db.yaml bitnami/postgresql
 helm install stock-db -f helm-config/stock_db.yaml bitnami/postgresql
@@ -26,10 +28,10 @@ helm install zookeeper -f helm-config/zookeeper.yaml bitnami/zookeeper
 helm install kafka -f helm-config/kafka.yaml bitnami/kafka 
 
 
-minikube image load kafkapod:latest
+# minikube image load kafkapod:latest
 
-cd kafka-pod
-kubectl apply -f .
+# cd kafka-pod
+# kubectl apply -f .
 
 # move images to minikube virtual machine
 minikube image load order:latest
