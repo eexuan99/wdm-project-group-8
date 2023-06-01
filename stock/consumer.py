@@ -43,11 +43,14 @@ last_offsets = {}
 
 # TODO: put a try except around this loop to catch errors
 for message in consumer:
+    print(f"message key is {message.key} , message keys order id  = {message.key['order_id']}, message key's tr_num is = {message.key['tr_num']}")
+    print(f"message keys order id type = {type(message.key['order_id'])}, message key's tr_num is = {type(message.key['tr_num'])}")
     order_id, tr_num =  message.key['order_id'], message.key['tr_num'] # for some reason tr_num is of type list, it is a list of 1 element so I'll get that 1 element
     # TODO remove the if stament below:
-    if len(message.key['tr_num']) != 1:
-        raise Exception(f"Unexpected: message.key['tr_num'] is not a list with only one element instead it has the following contents {message.key['tr_num']}")
+    # if len(message.key['tr_num']) != 1:
+    #     raise Exception(f"Unexpected: message.key['tr_num'] is not a list with only one element instead it has the following contents {message.key['tr_num']}")
     tr_type, items = message.value['tr_type'], message.value['items'] 
+    print(f"the message values are tr_type= {tr_type} and items = {items}")
     partition = message.partition
 
     # for every partition we store the last offset we've seen from that transistion only if it wasn't a duplicate message, else we store -1
@@ -68,30 +71,39 @@ for message in consumer:
         # if message is a duplicate: continue to next message
         if number != 0:
             last_offsets[partition] = -1
+            print("did not do anything with this message: if loop at line 72")
             continue
         # else: save offset
         last_offsets[partition] = message.offset
     
     ok = False
     if tr_type == 'sub':
+        print(f"now trying to decrement stock at if loop at line 80")
         sql_statement = """UPDATE stock SET stock = stock - %s WHERE item_id = %s AND stock >= %s;"""
         try:
             for item in items:
+                print(f"now attempting to update the stock database: ")
                 id, amnt = item['id'], item['amnt']
                 cursor.execute(sql_statement, (amnt, id, amnt))
                 if cursor.rowcount == 0:
                     connector.rollback()
+                    # TODO: set ok to false here?
                     raise Exception("Couldn't subtract enough stock")
             
             ok = True
         except:
+            print("failed to decrement stock")
+            print(f"try block failed and ok variable should be false but it is ok = {ok}")
+            # TODO: SET ok to false here?
             connector.rollback()
     
     else:
+        print(f"now trying to increase stock at if loop at line 100")
         sql_statement = """UPDATE stock SET stock = stock + %s WHERE item_id = %s;"""
         for item in items:
             id, amnt = item['id'], item['amnt']
             cursor.execute(sql_statement, (amnt, id))
+        #TODO there is no roll back here, there is no try catch block here
     
     try: 
         sql_statement2 = """INSERT INTO messages(order_id, transaction_number, sign)
@@ -107,7 +119,7 @@ for message in consumer:
     if not isinstance(tr_num, int):
         raise Exception(f"tr_num is not an int instead it is of this type: {type(tr_num)}")
     
-    if not isinstance(order_id, int):
+    if not isinstance(order_id, str):
         raise Exception(f"order_id is not an int instead it is of this type: {type(order_id)}")    
 
     if ok and tr_type == 'sub':
@@ -123,6 +135,7 @@ for message in consumer:
                 'items': items
             }
         )
+        print(f"stock consumer has sent a message: at line 117 to Outcomes-topic the key is = {{'order_id': {order_id},'tr_num': {tr_num}}} and the value is = {{'type': 'ssucc','tr_type': {tr_type},'items': {items}}} ")
     elif tr_type == 'sub':
         producer.send(
             'Outcomes-topic',
@@ -136,3 +149,4 @@ for message in consumer:
                 'items': items
             }
         )
+        print(f"stock consumer has sent a message: at line 117 to Outcomes-topic the key is = {{'order_id': {order_id},'tr_num': {tr_num}}} and the value is = {{'type': 'ssucc','tr_type': {tr_type},'items': {items}}} ")

@@ -103,6 +103,7 @@ def sendOutcomeMessages(pending: list):
                 'type': 'trsucc'
             }
         )
+        print(f"order consumer is sending to this topic = Outcomes-topic, key ={m1.key}, value = {{'type': 'trsucc'}} ")
         sql_statement = """UPDATE order_table SET p_status = 'paid' WHERE order_id = %s;"""
 
         cursor.execute(sql_statement, (m1.key['order_id'],))
@@ -116,6 +117,7 @@ def sendOutcomeMessages(pending: list):
             'type': 'trfail'
         }
     )
+    print(f"order consumer is sending to this topic = Outcomes-topic, key ={m1.key}, value = {{'type': 'trfail'}} ")
     sql_statement = """UPDATE order_table SET p_status = 'not_paid' WHERE order_id = %s;"""
 
     cursor.execute(sql_statement, (m1.key['order_id'],))
@@ -141,6 +143,7 @@ def sendOutcomeMessages(pending: list):
         key= nonFailed.key,
         value = value
     )
+    print(f"order-consumer is sending a message to this topic = {topic}, with this key ={nonFailed.key} and this value = {value} ")
 
 
 # Fetches the last message from Outc-offs-topic (from specified partition) and returns it
@@ -228,6 +231,7 @@ def buildState(partitionsState: dict, partitionNumber: int, currentOffset: int):
             value={ 'offset':commitOffset },
             partition=partitionNumber
         )
+        print(f"order consumer has sent a message to outc-offs-topic with this value = {{ 'offset':{commitOffset} }} and partitionnumber = {partitionNumber}")
 
 
 ############################################ Read Message loop ############################################
@@ -241,8 +245,11 @@ for message in opsConsumer:
     
     if not message:
         print("message is an empty dictionary at line 240")
-        continue
+        raise Exception("an empty message!!!")
+        # continue
 
+    print(f"order consumer now consuming message with the following key= {tr_key}, value = {message.value}")
+    
     # TODO: check if loops with build state for offset_to_read
     if partition not in partitionsStates.keys() or partitionsStates[partition].offset_to_read!=offset:
         buildState(partitionsStates, partition, offset)

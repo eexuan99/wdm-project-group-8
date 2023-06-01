@@ -45,9 +45,9 @@ last_offsets = {}
 for message in consumer:
     print(f"message key is {message.key} , message keys order id  = {message.key['order_id']}, message key's tr_num is = {message.key['tr_num']}")
     print(f"message keys order id type = {type(message.key['order_id'])}, message key's tr_num is = {type(message.key['tr_num'])}")
-    order_id, tr_num =  message.key['order_id'], message.key['tr_num'][0]
-    if len(message.key['tr_num']) != 1:
-        raise Exception(f"Unexpected: message.key['tr_num'] is not a list with only one element instead it has the following contents {message.key['tr_num']}")
+    order_id, tr_num =  message.key['order_id'], message.key['tr_num']
+    # if len(message.key['tr_num']) != 1:
+    #     raise Exception(f"Unexpected: message.key['tr_num'] is not a list with only one element instead it has the following contents {message.key['tr_num']}")
     tr_type, user_id, amnt = message.value['tr_type'], message.value['user_id'], message.value['amnt'] 
     partition = message.partition
 
@@ -107,7 +107,7 @@ for message in consumer:
     if not isinstance(tr_num, int):
         raise Exception(f"tr_num is not an int instead it is of this type: {type(tr_num)}")
     
-    if not isinstance(order_id, int):
+    if not isinstance(order_id, str):
         raise Exception(f"order_id is not an int instead it is of this type: {type(order_id)}")
 
     if ok and tr_type == 'pay':
@@ -123,6 +123,7 @@ for message in consumer:
                         'amnt': amnt
                     }
                 )
+        print(f"payment consumer sent this message to 'Outcomes-topic', key = {{'order_id': {order_id},'tr_num': {tr_num}}} and mesage = {{'type': 'psucc','user_id': {user_id},'amnt': {amnt}}}")
     elif tr_type == 'pay':
         producer.send(
                 'Outcomes-topic',
@@ -136,3 +137,4 @@ for message in consumer:
                     'amnt': amnt
                 }
             )
+        print(f"payment consumer is has sent this message to topic 'Outcomes-topic', key = {{'order_id': {order_id},'tr_num': {tr_num}}} and value = {{'type': 'pfail','user_id': {user_id},'amnt': {amnt}}}")

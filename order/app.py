@@ -280,14 +280,18 @@ def checkout(order_id):
 
         sql_statement = """UPDATE order_table SET tr_number = tr_number +1, p_status = 'pending' WHERE order_id = %s RETURNING tr_number"""
         order_db_cursor.execute(sql_statement, (order_id,))
+        # tr_num is a tuple, NOTE we still do not check/handle the case where tr_num is None type
         tr_num = order_db_cursor.fetchone()
         order_db_conn.commit()
 
         if not isinstance(tr_num, int):
-            raise Exception(f"tr_num is not an int instead it is of this type: {type(tr_num)}")
-        
-        if not isinstance(order_id, int):
-            raise Exception(f"order_id is not an int instead it is of this type: {type(order_id)}")
+            if not isinstance(tr_num, tuple):
+                raise Exception(f"tr_num is not an int nor is it a tuple instead it is of this type: {type(tr_num)} content of tr_num is {tr_num}")
+            print(f"first element of this tuple is = {tr_num[0]}")
+            tr_num = tr_num[0]
+            
+        if not isinstance(order_id, str):
+            raise Exception(f"order_id is not an str instead it is of this type: {type(order_id)}")
 
         producer = KafkaProducer(
             bootstrap_servers = 'kafka-1.kafka-headless.default.svc.cluster.local:9092,kafka-0.kafka-headless.default.svc.cluster.local:9092,kafka-2.kafka-headless.default.svc.cluster.local:9092',
@@ -320,7 +324,7 @@ def checkout(order_id):
             }
         )
 
-        print(f'Successfully sent a message with key {key} to Stock-topic')
+        print(f"Successfully sent a message with key {key} to Stock-topic with value = {{'tr_type': 'sub','items': {itemsList}}}")
 
         metadata = future.get()
         partition = metadata.partition
@@ -348,7 +352,7 @@ def checkout(order_id):
             }
         )
 
-        print(f'Successfully sent a message with key {key} to Pay-topic')
+        print(f"Successfully sent a message with key {key} to Pay-topic, value = {{'tr_type': 'pay','user_id': {user_id},'amnt': {total_price}}} ")
 
         for message in consumer:
             if message.key != key or message.value['type'][:2] != 'tr':
