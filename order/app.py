@@ -11,7 +11,12 @@ from kafka import KafkaConsumer, KafkaProducer, TopicPartition
 
 app = Flask("order-service")
 
-redis_client: redis.Redis = redis.Redis(host='redis_client', port=6379)
+# redis_client: redis.Redis = redis.Redis(host='redis_client', port=6379)
+redis_client: redis.Redis = redis.Redis(host=os.environ['REDIS_HOST'],
+                              port=int(os.environ['REDIS_PORT']),
+                              password=os.environ['REDIS_PASSWORD'],
+                              db=int(os.environ['REDIS_DB']))
+
 
 order_db_conn = psycopg2.connect(
     host=os.environ['POSTGRES_HOST'],
