@@ -84,18 +84,36 @@ def addMessageToState(message, state: PartitionState):
 # If there are two suitable messages it sends messages to Outcomes, and eventually 
 # to Pay and Stock, then alters the order db to change the payment status
 def sendOutcomeMessages(pending: list):
+    print(f"the pending list has the length of {len(pending)} and it is equal to 2? {len(pending) == 2}")
     if len(pending) != 2:
+        print("returned from sendoutcomemessages() because length is not 2")
+        print(f"contents of pending list = {pending}")
         return
+    
+    #TODO this might be wrong: code below is for tuples not for lists, should be:
     m1, m2 = pending
+    # m1 = pending[0]
+    # m2 = pending[1]
+    
+    print(f"m1 = {m1}")
+    print(f"m2 = {m2}")
     
     # If for some reason we have 2 message from stock or 2 messages from pay:
     # m1.value['type'][0] = first letter, 'p' or 's' 
     if m1.value['type'][0] == m2.value['type'][0]:
+        print(f"for some reason we have 2 messages of the same type = {m2.value['type'][0]}")
         pending.pop(0)
+        print(f"popped one of the messages of the same type, now returnin from send outcome message")
         return
     
     # If both operation succeded:
+    print(f"check if the lines below are strings that are equal to 'succ'")
+    print(f"m1.value['type'][1:] = {m1.value['type'][1:]}")
+    print(f"m2.value['type'][1:] = {m2.value['type'][1:]}")
+
+    #TODO 'succ' is wrong should be ssucc and psucc
     if m1.value['type'][1:] == m2.value['type'][1:] == 'succ':
+        print("both operation succeeded")
         producer.send(
             'Outcomes-topic',
             key = m1.key,
@@ -124,13 +142,16 @@ def sendOutcomeMessages(pending: list):
     connector.commit()
 
     # If both have failed there is no need to send rollbacks
+    #TODO 'fail' is wrong, it should be pfail or sfail
     if m1.value['type'][1:] == m2.value['type'][1:] == 'fail':
         return
     
     nonFailed = m2
+    #TODO 'fail' is wrong, it should be pfail or sfail
     if m2.value['type'][1:] == 'fail':
         nonFailed = m1
     
+    #TODO 'fail' is wrong, it should be pfail or sfail
     match nonFailed.value['type'][0]:
         case 'p': type, topic = 'can', 'Pay-topic'
         case 's': type, topic = 'add', 'Stock-topic'
