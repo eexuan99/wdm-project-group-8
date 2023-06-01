@@ -283,11 +283,19 @@ def checkout(order_id):
         tr_num = order_db_cursor.fetchone()
         order_db_conn.commit()
 
+        if not isinstance(tr_num, int):
+            raise Exception(f"tr_num is not an int instead it is of this type: {type(tr_num)}")
+        
+        if not isinstance(order_id, int):
+            raise Exception(f"order_id is not an int instead it is of this type: {type(order_id)}")
+
         producer = KafkaProducer(
             bootstrap_servers = 'kafka-1.kafka-headless.default.svc.cluster.local:9092,kafka-0.kafka-headless.default.svc.cluster.local:9092,kafka-2.kafka-headless.default.svc.cluster.local:9092',
-            value_serializer = lambda v: json.loads(v.decode('ascii')),
-            key_serializer = lambda v: json.loads(v.decode('ascii')),
+            value_serializer = lambda v: json.dumps(v).encode('ascii'),
+            key_serializer = lambda v: json.dumps(v).encode('ascii'),
         )
+
+        print("producer created successfully at line 286")
 
         key = {
                 'order_id': order_id,
@@ -298,6 +306,10 @@ def checkout(order_id):
             'id': id,
             'amnt': amnt
         } for id, amnt, _ in items]
+        
+        print("producer created successfully at line 286")
+
+        print(f'Now attempting to send a message with key {key} to Stock-topic')
 
         future = producer.send(
             'Stock-topic',
@@ -308,8 +320,11 @@ def checkout(order_id):
             }
         )
 
+        print(f'Successfully sent a message with key {key} to Stock-topic')
+
         metadata = future.get()
         partition = metadata.partition
+
 
         consumer = KafkaConsumer(
             bootstrap_servers = 'kafka.default.svc.cluster.local:9092',
@@ -318,6 +333,10 @@ def checkout(order_id):
             auto_offset_reset='latest',
         )
         consumer.assign([TopicPartition('Outcomes-topic', partition)])
+
+        print(f'consumer created successfully at line 323 and it is assigned to the Outcomes-topic at partition {partition}')
+
+        print(f'Now attempting to send a message with key {key} to Pay-topic')
 
         producer.send(
             'Pay-topic',
@@ -328,6 +347,8 @@ def checkout(order_id):
                 'amnt': total_price
             }
         )
+
+        print(f'Successfully sent a message with key {key} to Pay-topic')
 
         for message in consumer:
             if message.key != key or message.value['type'][:2] != 'tr':
