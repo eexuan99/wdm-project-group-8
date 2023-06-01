@@ -18,14 +18,18 @@ connector = psycopg2.connect(
 
 cursor = connector.cursor()
 
+print("successfully made a database connector")
+
 
 ############################################ Kafka set up ############################################
 # TODO: finish
 producer = KafkaProducer(
     bootstrap_servers = 'kafka-1.kafka-headless.default.svc.cluster.local:9092,kafka-0.kafka-headless.default.svc.cluster.local:9092,kafka-2.kafka-headless.default.svc.cluster.local:9092',
-    value_serializer = lambda v: json.loads(v.decode('ascii')),
-    key_serializer = lambda v: json.loads(v.decode('ascii')),
+            value_serializer = lambda v: json.dumps(v).encode('ascii'),
+            key_serializer = lambda v: json.dumps(v).encode('ascii'),
 )
+
+print("successfully instantiated a kafka producer")
 
 opsConsumer = KafkaConsumer(
     #client_id = get it from k8s?,
@@ -38,6 +42,7 @@ opsConsumer = KafkaConsumer(
 
 opsConsumer.subscribe(topics=['Outcomes-topic'])
 
+print("successfully made a an opsConsumer in order consumer")
 
 ############################################ Partition state class ############################################
 
@@ -58,19 +63,22 @@ class PartitionState():
 # Changes the message's partition state when needed, by adding message 
 # to pending messages or tr_id = (order_id, tr_num) to done transactions
 def addMessageToState(message, state: PartitionState):
+    print(f'message here is: {message}')
+    print(f'message is is an empty dict = {not message}')
     tr_id = (message.key['order_id'], message.key['tr_num'])
 
     # I don't need to add the transaction done message to the pending messages, at most add tr_id to done transactions
     if message.value['type'] in ['trsucc', 'trfail'] and tr_id in state.tr_pending.keys():
         state.tr_done.add(tr_id)
+        print(f'===================================== \n Function: addMessageToState(message, state: PartitionState) \n line 70 \n added tr_id {tr_id} to state.tr_done \n =====================================')
     else:
         # if this is the first message from this transaction
         if tr_id not in state.tr_pending.keys():
             state.tr_pending[tr_id] = []
-            state.tr_start_offset.append(tr_id, message.offset)
-            
+            state.tr_start_offset.append((tr_id, message.offset))
+            print(f'===================================== \n Function: addMessageToState(message, state: PartitionState) \n line 74 \n this is the first message from this transaction with tr_id: {tr_id}, created a list and added the tr_id and offset of this message \n =====================================')    
         state.tr_pending[tr_id].append(message)
-
+        print(f'===================================== \n Function: addMessageToState(message, state: PartitionState) \n line 72 else case \n added this message to tr_pending of the state object \n =====================================')
 # Takes as input the list of messages from pending.
 # If there are no two suitable messages it return (alters list if 2 duplicate messages)
 # If there are two suitable messages it sends messages to Outcomes, and eventually 
@@ -95,7 +103,7 @@ def sendOutcomeMessages(pending: list):
                 'type': 'trsucc'
             }
         )
-        sql_statement = """UPDATE order_table SET paid = 'paid' WHERE order_id = %s;"""
+        sql_statement = """UPDATE order_table SET p_status = 'paid' WHERE order_id = %s;"""
 
         cursor.execute(sql_statement, (m1.key['order_id'],))
         connector.commit()
@@ -108,7 +116,7 @@ def sendOutcomeMessages(pending: list):
             'type': 'trfail'
         }
     )
-    sql_statement = """UPDATE order_table SET paid = 'not_paid' WHERE order_id = %s;"""
+    sql_statement = """UPDATE order_table SET p_status = 'not_paid' WHERE order_id = %s;"""
 
     cursor.execute(sql_statement, (m1.key['order_id'],))
     connector.commit()
@@ -189,7 +197,10 @@ def buildState(partitionsState: dict, partitionNumber: int, currentOffset: int):
             state.offset_to_read = msg.offset
             break
         
-        addMessageToState(msg, partitionsState)
+        if not msg:
+            print("msg at line 200 is an empty dict, which does not have keys")
+        print("calling addMessageToState at line 203")
+        addMessageToState(msg, state)
     
     # if there is no new offset to push to Outc-offs-topic
     if len(state.tr_start_offset) == 0: return
@@ -209,8 +220,8 @@ def buildState(partitionsState: dict, partitionNumber: int, currentOffset: int):
     if commitOffset:
         producer = KafkaProducer(
             bootstrap_servers = 'kafka-1.kafka-headless.default.svc.cluster.local:9092,kafka-0.kafka-headless.default.svc.cluster.local:9092,kafka-2.kafka-headless.default.svc.cluster.local:9092',
-            value_serializer = lambda v: json.loads(v.decode('ascii')),
-            key_serializer = lambda v: json.loads(v.decode('ascii')),
+            value_serializer = lambda v: json.dumps(v).encode('ascii'),
+            key_serializer = lambda v: json.dumps(v).encode('ascii'),
         )
         producer.send(
             'Outc-offs-topic',
@@ -228,13 +239,46 @@ for message in opsConsumer:
     partition = message.partition
     offset = message.offset
     
+    if not message:
+        print("message is an empty dictionary at line 240")
+        continue
+
     # TODO: check if loops with build state for offset_to_read
     if partition not in partitionsStates.keys() or partitionsStates[partition].offset_to_read!=offset:
         buildState(partitionsStates, partition, offset)
-        opsConsumer.seek(partition, partitionsStates[partition].offset_to_read)
-        message = opsConsumer.next()
+        topic_partition = TopicPartition(topic='Outcomes-topic', partition=partition)
+
+        print(f'======================== \n this is the message BEFORE calling the poll method \n message is empty = {not message} \n message key = {message.key} \n partition = {message.partition} \n offset = {message.offset} \n message type = {type(message)} \n message = {message} \n ======================================= \n')
+
+
+        opsConsumer.seek(topic_partition, partitionsStates[partition].offset_to_read)
+
+        print(f'======================== \n this is the message AFTER calling the poll method \n message is empty = {not message} \n message key = {message.key} \n partition = {message.partition} \n offset = {message.offset} \n message type = {type(message)} \n message = {message} \n ======================================= \n')
+
+
+        # message = opsConsumer.poll(timeout_ms=50, max_records=2)
+        # print(f'the poll method returns the following type of thing: {type(message)}')
+        # print(f'the poll method returns the following thing: {message}')
+
+        # for tp, record_list in message.items():
+        #     for record in record_list:
+        #         # Process the record here
+        #         print(f'record of message value = {record.value} and key is = {record.key}')
+        #         if not record:
+        #             print("message is an empty dictionary around line 260")
+        #             continue
+        #         message = record
+        #         print(f'message item is changed in the for loop!')
+        #         # continue
+
+        # continue
+        # continue # message = opsConsumer.next()
 
     state = partitionsStates[partition]
-    addMessageToState(message, partitionsStates)
-    sendOutcomeMessages(state.pending[tr_key])
+    print("calling addMessageToState at line 272")
+    print(f"message empty at 272 = {not message}")
+    addMessageToState(message, state)
+    print("calling sendOutcomeMessages at line 283")
+    print(f"message empty at 283 = {not message}")
+    sendOutcomeMessages(state.tr_pending[(message.key['order_id'], message.key['tr_num'])])
     state.offset_to_read += 1
