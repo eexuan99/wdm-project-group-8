@@ -1,15 +1,12 @@
 import os
 import atexit
-import redis
+# import redis
 import psycopg2
-from flask import Flask
+from flask import Flask, request, jsonify
 
 app = Flask("stock-service")
 
-db: redis.Redis = redis.Redis(host=os.environ['REDIS_HOST'],
-                              port=int(os.environ['REDIS_PORT']),
-                              password=os.environ['REDIS_PASSWORD'],
-                              db=int(os.environ['REDIS_DB']))
+# redis_client: redis.Redis = redis.Redis(host='redis_client', port=6379)
 
 stock_db_conn = psycopg2.connect(
     host=os.environ['POSTGRES_HOST'],
@@ -21,7 +18,7 @@ stock_db_conn = psycopg2.connect(
 stock_db_cursor = stock_db_conn.cursor()
 
 def close_db_connection():
-    db.close()
+    # redis_client.close()
     stock_db_cursor.close()
     stock_db_conn.close()
 
@@ -32,8 +29,17 @@ atexit.register(close_db_connection)
 def get_all():
     sql_statement = """SELECT * FROM stock;"""
     stock_db_cursor.execute(sql_statement)
-    stock = stock_db_cursor.fetchall()    
+    stock = stock_db_cursor.fetchall()
     return {"stock": stock}, 200
+
+# Testing redis function
+@app.post('/redis')
+def ping():
+    response = redis_client.ping()
+    if response:
+        return("Connected to Redis successfully")
+    else:
+        return("Failed to connect to Redis")
 
 
 @app.post('/item/create/<price>')
@@ -92,10 +98,25 @@ def remove_stock(item_id: int, amount: int):
         stock_db_cursor.execute(sql_statement, (amount, item_id, amount))
         if stock_db_cursor.rowcount > 0:
             stock_db_conn.commit()
+            return {"success": f"Removed {amount} stock from item {item_id}"}, 200
         else:
             return {"error": "Not enough stock or item not found"}, 400
     except psycopg2.DatabaseError as error:
         print(error)
         return {"error": "Error creating item"}, 400
     
-    return {"success": f"Removed {amount} stock from item {item_id}"}, 200
+
+######### GETS CALLED BY THE ORDER MICROSERVICE #########
+@app.get('/getPrice/<item_id>')
+def get_item_price(item_id: int):
+    # Call other microservice
+    sql_statement = """SELECT unit_price FROM stock WHERE item_id = %s;"""
+    try:
+        stock_db_cursor.execute(sql_statement, (item_id,))
+        item = stock_db_cursor.fetchone()
+        if not item:
+            return {"error": "Item not found"}, 400
+    except psycopg2.DatabaseError as error:
+        print(error)
+        return {"error": "Error creating item"}, 400
+    return jsonify({"price": item[0]}), 200

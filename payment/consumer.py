@@ -100,7 +100,6 @@ for message in consumer:
                     },
                     value = {
                         'type': 'psucc',
-                        'tr_type': tr_type,
                         'user_id': user_id,
                         'amnt': amnt
                     }
@@ -114,7 +113,6 @@ for message in consumer:
                 },
                 value = {
                     'type': 'pfail',
-                    'tr_type': tr_type,
                     'user_id': user_id,
                     'amnt': amnt
                 }
