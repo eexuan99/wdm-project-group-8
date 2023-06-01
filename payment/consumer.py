@@ -22,8 +22,8 @@ cursor = connector.cursor()
 # TODO: finish
 producer = KafkaProducer(
     bootstrap_servers = 'kafka-1.kafka-headless.default.svc.cluster.local:9092,kafka-0.kafka-headless.default.svc.cluster.local:9092,kafka-2.kafka-headless.default.svc.cluster.local:9092',
-    value_serializer = lambda v: json.loads(v.decode('ascii')),
-    key_serializer = lambda v: json.loads(v.decode('ascii')),
+    value_serializer = lambda v: json.dumps(v).encode('ascii'),
+    key_serializer = lambda v: json.dumps(v).encode('ascii'),
 )
 
 consumer = KafkaConsumer(
@@ -43,7 +43,11 @@ last_offsets = {}
 
 # TODO: put a try except around this loop to catch errors
 for message in consumer:
-    order_id, tr_num =  message.key['order_id'], message.key['tr_num']
+    print(f"message key is {message.key} , message keys order id  = {message.key['order_id']}, message key's tr_num is = {message.key['tr_num']}")
+    print(f"message keys order id type = {type(message.key['order_id'])}, message key's tr_num is = {type(message.key['tr_num'])}")
+    order_id, tr_num =  message.key['order_id'], message.key['tr_num'][0]
+    if len(message.key['tr_num']) != 1:
+        raise Exception(f"Unexpected: message.key['tr_num'] is not a list with only one element instead it has the following contents {message.key['tr_num']}")
     tr_type, user_id, amnt = message.value['tr_type'], message.value['user_id'], message.value['amnt'] 
     partition = message.partition
 
@@ -51,13 +55,16 @@ for message in consumer:
     if partition not in last_offsets.keys(): last_offsets[partition] = -1
 
     # if we did not store the previous offset (rebalance or initializing)
-    if message.offset != last_offsets[partition][1] + 1:
+    if message.offset != last_offsets[partition] + 1: # was: if message.offset != last_offsets[partition][1] + 1:
         sql_statement = """SELECT count(*) FROM messages 
                             WHERE order_id = %s and
                                 transaction_number = %s and
                                 sign = %s"""
         cursor.execute(sql_statement, (order_id, tr_num, tr_type))
-        number = int(cursor.fetchone())
+        ret  = cursor.fetchone()
+        print(f'ret: {ret}')
+        print(f'type of ret is {type(ret)}')
+        number = ret[0]
         
         # if message is a duplicate: continue to next message
         if number != 0:
@@ -86,10 +93,22 @@ for message in consumer:
                                     WHERE user_id = %s;"""
         cursor.execute(sql_statement, (amnt, user_id))
 
-    sql_statement2 = """INSERT INTO messages(order_id, transaction_number, sign)
-                                VALUES (%s, %s, %s);"""
-    cursor.execute(sql_statement2, (order_id, tr_num, tr_type))
-    connector.commit()
+    try: 
+        sql_statement2 = """INSERT INTO messages(order_id, transaction_number, sign)
+                                    VALUES (%s, %s, %s);"""
+        print(f'the value of the inserted values are order_id : {order_id}, tr_num: {tr_num}, tr_type -> sign : {tr_type}')
+        print(f'the type of the inserted values are order_id : {type(order_id)}, tr_num: {type(tr_num)}, tr_type -> sign : {type(tr_type)}')
+        cursor.execute(sql_statement2, (order_id, tr_num, tr_type))
+        connector.commit()
+    except Exception as err:
+        print(err)
+        connector.rollback()
+
+    if not isinstance(tr_num, int):
+        raise Exception(f"tr_num is not an int instead it is of this type: {type(tr_num)}")
+    
+    if not isinstance(order_id, int):
+        raise Exception(f"order_id is not an int instead it is of this type: {type(order_id)}")
 
     if ok and tr_type == 'pay':
         producer.send(
