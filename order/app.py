@@ -393,3 +393,17 @@ def cancel_payment(user_id: int, order_id: int):
         return {"error": "Error cancelling payment"}, 400
     
     return {"success": f"Order {order_id} cancelled"}, 200
+
+## FOR TESTING PURPOSES ONLY
+@app.post('/changeStatus/<order_id>')
+def change_status(order_id):
+    sql_statement = """UPDATE order_table
+                           SET p_status = 'not_paid'
+                           WHERE order_id = %s;"""
+    try:
+        order_db_cursor.execute(sql_statement, (order_id,))
+        order_db_conn.commit()
+    except psycopg2.DatabaseError as error:
+        print(error)
+        return {"error": "Error changing payment status"}, 400
+    return {"success": f"Changed status of {order_id}"}, 200
