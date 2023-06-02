@@ -4,6 +4,7 @@ import psycopg2
 import json
 from collections import deque
 from kafka import KafkaConsumer, KafkaProducer, TopicPartition
+from kafka.errors import OffsetOutOfRangeError
 
 app = Flask("order-consumer")
 
@@ -83,26 +84,32 @@ def addMessageToState(message, state: PartitionState):
 # If there are no two suitable messages it return (alters list if 2 duplicate messages)
 # If there are two suitable messages it sends messages to Outcomes, and eventually 
 # to Pay and Stock, then alters the order db to change the payment status
-def sendOutcomeMessages(pending: list):
+def sendOutcomeMessages(pending: set):
     print(f"the pending list has the length of {len(pending)} and it is equal to 2? {len(pending) == 2}")
     if len(pending) != 2:
         print("returned from sendoutcomemessages() because length is not 2")
         print(f"contents of pending list = {pending}")
         return
     
+    print(f"contents of pending list = {pending}")
+    # print(f"type of pending is = {type(pending)}")    
+
     #TODO this might be wrong: code below is for tuples not for lists, should be:
     m1, m2 = pending
     # m1 = pending[0]
     # m2 = pending[1]
     
-    print(f"m1 = {m1}")
-    print(f"m2 = {m2}")
+    print(f"============================== \n m1 = {m1}")
+    print(f"m2 = {m2} \n===================================== \n")
     
+    
+
     # If for some reason we have 2 message from stock or 2 messages from pay:
     # m1.value['type'][0] = first letter, 'p' or 's' 
+    # TODO: remove
     if m1.value['type'][0] == m2.value['type'][0]:
         print(f"for some reason we have 2 messages of the same type = {m2.value['type'][0]}")
-        pending.pop(0)
+        pending.pop()
         print(f"popped one of the messages of the same type, now returnin from send outcome message")
         return
     
@@ -202,6 +209,9 @@ def buildState(partitionsState: dict, partitionNumber: int, currentOffset: int):
         partitionsState[partitionNumber] = PartitionState(partitionNumber)
     state = partitionsState[partitionNumber]
     
+    if currentOffset == 0:
+        return
+
     # consumer needed to read all messages from offset in state up to currentOffset
     consumer = KafkaConsumer(
         bootstrap_servers = 'kafka.default.svc.cluster.local:9092',
@@ -209,36 +219,60 @@ def buildState(partitionsState: dict, partitionNumber: int, currentOffset: int):
         key_deserializer=lambda v: json.loads(v.decode('ascii'))
     )
 
-    partition = TopicPartition('Outcomes-topic', partitionNumber)
-    consumer.assign([partition])
-    consumer.seek(partition, state.offset_to_read)
+    try:        
+        partition = TopicPartition('Outcomes-topic', partitionNumber)
+        consumer.assign([partition])
+        print(f"consumer made at buildState function will now seek partition = {partition}, with offset = {state.offset_to_read}, is there even a message with offset {state.offset_to_read}?")
+        print(f"state.offset_to_read = {state.offset_to_read}, currentOffset = {currentOffset}")
+        consumer.seek(partition, state.offset_to_read)
+        # consumer.seek(partition, currentOffset)
+        print(f"returned from consumer.seek funciton call")
+        #TODO: which topic should this newly made consumer subscribe to? outcomes topic
+    except OffsetOutOfRangeError as e:
+        print(f"Requested offset ({offset}) is out of range for topic '{partition}', partition {partitionNumber}.")
+    except Exception:
+        print("some exception occured in try block at 220")
+
+    print(f"now starting with the for loop at line 234")
     
-    for msg in consumer:
-        
-        # > just in the case that asynch commit did not commit the offsets of read messages 
-        # before the consumer died, but after the consumer pushed an offset to Outc-offs-topic
-        if msg.offset >= currentOffset:
-            state.offset_to_read = msg.offset
-            break
-        
-        if not msg:
-            print("msg at line 200 is an empty dict, which does not have keys")
-        print("calling addMessageToState at line 203")
-        addMessageToState(msg, state)
-    
+    try:
+        for msg in consumer:
+            print(f"a round of the for loop at line 226")
+            # > just in the case that asynch commit did not commit the offsets of read messages 
+            # before the consumer died, but after the consumer pushed an offset to Outc-offs-topic
+            if msg.offset >= currentOffset:
+                print(f"entered the if loop inside of the for loop, gonna set state.offset_to_read to = {msg.offset} = msg.offset, and then break out of for loop!")
+                state.offset_to_read = msg.offset
+                break
+            
+            if not msg:
+                print("msg at line 226 is an empty dict, which does not have keys")
+            print("calling addMessageToState at line 238, should we call sendOutcomes message after this function?")
+            addMessageToState(msg, state)
+            #TODO do we not have to also call sendOutcomeMessage function here?
+    except Exception as e:
+        print("Exception occurred at for loop in line 236:", str(e))
+
     # if there is no new offset to push to Outc-offs-topic
-    if len(state.tr_start_offset) == 0: return
+    if len(state.tr_start_offset) == 0: 
+        print(f"len(state.tr_start_offset) == 0 == {len(state.tr_start_offset) == 0}, now returning from buildstate function because there is no new offset to push to Outc-offs-topic")
+        return
 
     # check whether anything has to be pushed to Outc-offs-topic at all
     commitOffset = None
     while(state.tr_start_offset[0] in state.tr_done):
-        state.tr_done.remove(state.tr_start_offset[0] )
+        print(f"one round of while loop at line 248")
+        state.tr_done.remove(state.tr_start_offset[0])
+        print(f"this functioon was called state.tr_done.remove(state.tr_start_offset[0]), where state.tr_start_offset[0] = {state.tr_start_offset[0]}")
         state.tr_start_offset.popleft()
+        print(f"this function was called: state.tr_start_offset.popleft()")
         
         if len(state.tr_start_offset) > 0:
+            print(f"entered if case: currentOffset will be set to state.tr_start_offset[0][1] = {state.tr_start_offset[0][1]}")
             commitOffset = state.tr_start_offset[0][1]
         else:
             commitOffset = currentOffset
+            print(f"commit offset will be set to currentOffset = {commitOffset}, this is the else case")
             break
 
     if commitOffset:
@@ -252,7 +286,7 @@ def buildState(partitionsState: dict, partitionNumber: int, currentOffset: int):
             value={ 'offset':commitOffset },
             partition=partitionNumber
         )
-        print(f"order consumer has sent a message to outc-offs-topic with this value = {{ 'offset':{commitOffset} }} and partitionnumber = {partitionNumber}")
+        print(f"because commitOffset = {commitOffset}, order consumer has sent a message to outc-offs-topic with this value = {{ 'offset':{commitOffset} }} and partitionnumber = {partitionNumber}")
 
 
 ############################################ Read Message loop ############################################
@@ -269,10 +303,15 @@ for message in opsConsumer:
         raise Exception("an empty message!!!")
         # continue
 
-    print(f"order consumer now consuming message with the following key= {tr_key}, value = {message.value}")
-    
+    print(f"order consumer now consuming message with the following key= {tr_key}, value = {message.value}, partition = {partition}, offset = {offset}")
+    print(f"will pass the if check at line 280? {partition not in partitionsStates.keys() or partitionsStates[partition].offset_to_read!=offset}")
+    print(f"partition not in partitionsStates.keys() = {partition not in partitionsStates.keys()}")
+    if partition in partitionsStates.keys():
+        print(f"partitionsStates[partition].offset_to_read!=offset = {partitionsStates[partition].offset_to_read!=offset}, offset = {offset}, partitionsStates[partition].offset_to_read = {partitionsStates[partition].offset_to_read}")
+
     # TODO: check if loops with build state for offset_to_read
     if partition not in partitionsStates.keys() or partitionsStates[partition].offset_to_read!=offset:
+        print(f"entered if loop at line 286, now calling buildstate function with partition = {partition}, offset = {offset}")
         buildState(partitionsStates, partition, offset)
         topic_partition = TopicPartition(topic='Outcomes-topic', partition=partition)
 
@@ -283,6 +322,7 @@ for message in opsConsumer:
 
         print(f'======================== \n this is the message AFTER calling the poll method \n message is empty = {not message} \n message key = {message.key} \n partition = {message.partition} \n offset = {message.offset} \n message type = {type(message)} \n message = {message} \n ======================================= \n')
 
+        continue
 
         # message = opsConsumer.poll(timeout_ms=50, max_records=2)
         # print(f'the poll method returns the following type of thing: {type(message)}')
@@ -303,10 +343,10 @@ for message in opsConsumer:
         # continue # message = opsConsumer.next()
 
     state = partitionsStates[partition]
-    print("calling addMessageToState at line 272")
-    print(f"message empty at 272 = {not message}")
+    print("calling addMessageToState at line 313")
+    print(f"message empty at 313 = {not message}")
     addMessageToState(message, state)
-    print("calling sendOutcomeMessages at line 283")
-    print(f"message empty at 283 = {not message}")
+    print("calling sendOutcomeMessages at line 315")
+    print(f"message empty at 315 = {not message}")
     sendOutcomeMessages(state.tr_pending[(message.key['order_id'], message.key['tr_num'])])
     state.offset_to_read += 1
