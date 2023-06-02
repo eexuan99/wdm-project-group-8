@@ -8,6 +8,7 @@ import requests
 from flask import Flask, request, jsonify
 from psycopg2 import sql
 from kafka import KafkaConsumer, KafkaProducer, TopicPartition
+from kafka.partitioner.default import *
 
 app = Flask("order-service")
 
@@ -315,7 +316,7 @@ def checkout(order_id):
 
         print(f'Now attempting to send a message with key {key} to Stock-topic')
 
-        future = producer.send(
+        producer.send(
             'Stock-topic',
             key= key,
             value = {
@@ -326,8 +327,9 @@ def checkout(order_id):
 
         print(f"Successfully sent a message with key {key} to Stock-topic with value = {{'tr_type': 'sub','items': {itemsList}}}")
 
-        metadata = future.get()
-        partition = metadata.partition
+        partition = murmur2(json.dumps(key).encode('ascii'))
+        partition &= 0x7fffffff
+        partition %= 100
 
 
         consumer = KafkaConsumer(

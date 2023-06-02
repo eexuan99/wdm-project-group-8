@@ -1,16 +1,16 @@
-# apiVersion: v1
-# kind: Service
-# metadata:
-#   name: order-consumer
-# spec:
-#   type: ClusterIP
-#   selector:
-#     component: order-consumer
-#   ports:
-#     - port: 5000
-#       name: http
-#       targetPort: 5000
-# ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-consumer-service
+spec:
+  type: ClusterIP
+  selector:
+    component: order-consumer
+  ports:
+    - port: 5000
+      name: http
+      targetPort: 5000
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -31,16 +31,18 @@ spec:
           imagePullPolicy: Never
           resources:
             limits:
-              memory: "1Gi"
-              cpu: "1"
+              memory: "300Mi" #"1Gi"
+              # cpu: "1"
             requests:
-              memory: "1Gi"
-              cpu: "1"
+              memory: "300Mi" #"1Gi"
+              # cpu: "1"
           command: ["gunicorn"]
-          args: ["-b", "0.0.0.0:5000", "consumer:app"]
+          args: ["-b", "0.0.0.0:5000", "--log-level", "debug", "consumer:app"]
           ports:
             - containerPort: 5000
           env:
+            - name: LOG_LEVEL
+              value: "debug"
             - name: USER_SERVICE_URL
               value: "user-service"
             - name: STOCK_SERVICE_URL
@@ -62,4 +64,5 @@ spec:
             - name: POSTGRES_DB
               value: "database"
             - name: POSTGRES_PORT
-              value: '5432'   
+              value: '5432'  
+           

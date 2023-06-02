@@ -258,6 +258,12 @@ def buildState(partitionsState: dict, partitionNumber: int, currentOffset: int):
         print(f"len(state.tr_start_offset) == 0 == {len(state.tr_start_offset) == 0}, now returning from buildstate function because there is no new offset to push to Outc-offs-topic")
         return
 
+    dealWithTransactionEnd(state)
+
+
+def dealWithTransactionEnd(state: PartitionState):
+    currentOffset = state.offset_to_read
+
     # check whether anything has to be pushed to Outc-offs-topic at all
     commitOffset = None
     while(state.tr_start_offset[0] in state.tr_done):
@@ -284,10 +290,9 @@ def buildState(partitionsState: dict, partitionNumber: int, currentOffset: int):
         producer.send(
             'Outc-offs-topic',
             value={ 'offset':commitOffset },
-            partition=partitionNumber
+            partition=state.id
         )
-        print(f"because commitOffset = {commitOffset}, order consumer has sent a message to outc-offs-topic with this value = {{ 'offset':{commitOffset} }} and partitionnumber = {partitionNumber}")
-
+        print(f"because commitOffset = {commitOffset}, order consumer has sent a message to outc-offs-topic with this value = {{ 'offset':{commitOffset} }} and partitionnumber = {state.id}")
 
 ############################################ Read Message loop ############################################
 
@@ -346,7 +351,14 @@ for message in opsConsumer:
     print("calling addMessageToState at line 313")
     print(f"message empty at 313 = {not message}")
     addMessageToState(message, state)
-    print("calling sendOutcomeMessages at line 315")
-    print(f"message empty at 315 = {not message}")
-    sendOutcomeMessages(state.tr_pending[(message.key['order_id'], message.key['tr_num'])])
+
+    if message.value['type'] in ['trsucc', 'trfail']:
+        print(f"now processing a message of type {message.value['type']}, and calling dealWithTransactioEnd")
+        dealWithTransactionEnd(state)
+        print(f"returned from dealWithTransactioEnd invocation")
+    else:
+        print("calling sendOutcomeMessages at line 315")
+        print(f"message empty at 315 = {not message}")
+        sendOutcomeMessages(state.tr_pending[(message.key['order_id'], message.key['tr_num'])])
+
     state.offset_to_read += 1

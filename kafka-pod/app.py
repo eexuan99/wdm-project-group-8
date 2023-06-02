@@ -5,8 +5,8 @@ import os
 # import re
 from flask import Flask
 # from psycopg2 import sql
-# from confluent_kafka import Producer, Consumer, KafkaException
-from kafka import KafkaProducer, KafkaConsumer
+from kafka import KafkaProducer, KafkaConsumer,  KafkaAdminClient, KafkaClient
+
 
 app = Flask("kafka-pod-service")
 
@@ -26,6 +26,28 @@ def produce_kafka_message():
 
     print('Message produced successfully!')
 
+def check_topics():
+    bootstrap_servers = 'kafka.default.svc.cluster.local:9092'
+    consumer = KafkaConsumer(bootstrap_servers=bootstrap_servers)
+    topics = consumer.topics()
+    print(topics)
+    print("type of topics at line 33:")
+    print(type(topics))
+    for topic in topics:
+        partitions = consumer.partitions_for_topic(topic)
+        print("topicname is:")
+        print(topic)
+        print("number of partitions")
+        print(len(partitions))
+
+    # admin_client = KafkaAdminClient(bootstrap_servers=bootstrap_servers)
+
+    # # Get the existing topics and their partitions
+    # topic_partitions = admin_client.list_topics()
+
+    # # Print the topic information
+    # for topic in topic_partitions:
+    #     print(f"Topic: {topic}, type of topic: {type(topic)}")
 
 def consume_kafka_message():
     # Kafka broker configuration
@@ -50,8 +72,9 @@ def consume_kafka_message():
 
 
 # if __name__ == '__main__':
-produce_kafka_message()
-consume_kafka_message()
+# produce_kafka_message()
+# consume_kafka_message()
+check_topics()
 
 
 

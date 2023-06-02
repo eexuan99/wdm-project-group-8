@@ -31,11 +31,11 @@ spec:
           imagePullPolicy: Never
           resources:
             limits:
-              memory: "1Gi"
-              cpu: "1"
+              memory: "300Mi" #"1Gi"
+              # cpu: "1"
             requests:
-              memory: "1Gi"
-              cpu: "1"
+              memory: "300Mi" #"1Gi"
+              # cpu: "1"
           command: ["gunicorn"]
           args: ["-b", "0.0.0.0:5000", "app:app"]
           ports:
