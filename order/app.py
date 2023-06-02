@@ -98,11 +98,22 @@ def remove_order(order_id):
 def add_item(order_id, item_id):
     try:
         # Check if order exists
-        sql_statement = """SELECT * FROM order_table WHERE order_id = %s;"""
+        
+        # sql_statement = """SELECT * FROM order_table WHERE order_id = %s;"""
+        # order_db_cursor.execute(sql_statement, (order_id,))
+        # order = order_db_cursor.fetchone()
+        # if not order:
+        #     return {"error": "Order not found"}, 400
+
+        sql_statement = """SELECT p_status FROM order_table WHERE order_id = %s;"""
         order_db_cursor.execute(sql_statement, (order_id,))
-        order = order_db_cursor.fetchone()
-        if not order:
+        status = order_db_cursor.fetchone()
+
+        if not status:
             return {"error": "Order not found"}, 400
+
+        if status[0] == "paid":
+            return {"error": "Cannot add item to an order that is already paid"}, 400
 
         # Check if saved in 'cache' else add to cache, otherwise take value.
         if redis_client.exists(item_id):
