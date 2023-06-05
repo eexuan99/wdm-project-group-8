@@ -164,7 +164,7 @@ def sendOutcomeMessages(pending: set):
         case 's': type, topic = 'add', 'Stock-topic'
 
     value = nonFailed.value.copy()
-    value['type'] = type
+    value['tr_type'] = type
     
     producer.send(
         topic = topic,
