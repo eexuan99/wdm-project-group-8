@@ -43,8 +43,14 @@ atexit.register(close_db_connection)
 @app.get('/getall')
 def get_all():
     sql_statement = """SELECT * FROM order_table;"""
-    order_db_cursor.execute(sql_statement)
-    order = order_db_cursor.fetchall()
+    try:
+        order_db_cursor.execute(sql_statement)
+        order = order_db_cursor.fetchall()
+    except psycopg2.Error as error:
+        print(error)
+        reconnect_db()
+        order_db_cursor.execute(sql_statement)
+        order = order_db_cursor.fetchall()
     return {"order": order}, 200
 
 # Testing redis function
