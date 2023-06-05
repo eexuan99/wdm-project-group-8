@@ -16,11 +16,15 @@ tmp_folder_path: str = os.path.join(gettempdir(), 'wdm_consistency_test')
 
 NUMBER_OF_ORDERS = 1000
 
-with open(os.path.join('..', 'urls.json')) as f:
-    urls = json.load(f)
-    ORDER_URL = urls['ORDER_URL']
-    PAYMENT_URL = urls['PAYMENT_URL']
-    STOCK_URL = urls['STOCK_URL']
+# with open('urls.json') as f:
+#     urls = json.load(f)
+#     ORDER_URL = urls['ORDER_URL']
+#     PAYMENT_URL = urls['PAYMENT_URL']
+#     STOCK_URL = urls['STOCK_URL']
+
+STOCK_URL = os.environ['URL']
+ORDER_URL = os.environ['URL']
+PAYMENT_URL = os.environ['URL']
 
 
 async def create_order(session, url):

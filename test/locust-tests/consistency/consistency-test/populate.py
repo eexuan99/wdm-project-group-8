@@ -17,11 +17,15 @@ ITEM_PRICE = 1
 NUMBER_OF_USERS = 1000
 USER_STARTING_CREDIT = 1
 
-with open(os.path.join('..', 'urls.json')) as f:
-    urls = json.load(f)
-    ORDER_URL = urls['ORDER_URL']
-    PAYMENT_URL = urls['PAYMENT_URL']
-    STOCK_URL = urls['STOCK_URL']
+# with open('urls.json') as f:
+#     urls = json.load(f)
+#     ORDER_URL = urls['ORDER_URL']
+#     PAYMENT_URL = urls['PAYMENT_URL']
+#     STOCK_URL = urls['STOCK_URL']
+
+STOCK_URL = os.environ['URL']
+ORDER_URL = os.environ['URL']
+PAYMENT_URL = os.environ['URL']
 
 
 async def post_and_get_status(session, url):

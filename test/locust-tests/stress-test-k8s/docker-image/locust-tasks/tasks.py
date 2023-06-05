@@ -1,4 +1,5 @@
-import os.path
+# import os.path
+import os
 import random
 import json
 from typing import List
@@ -13,9 +14,9 @@ from locust import HttpUser, SequentialTaskSet, between, task
 #     PAYMENT_URL = urls['PAYMENT_URL']
 #     STOCK_URL = urls['STOCK_URL']
 
-ORDER_URL = "http://order-service:5000"
-PAYMENT_URL = "http://user-service:5000"
-STOCK_URL = "http://stock-service:5000"
+ORDER_URL = "http://"+os.environ['TARGET_HOST']
+PAYMENT_URL = "http://"+os.environ['TARGET_HOST']
+STOCK_URL = "http://"+os.environ['TARGET_HOST']
 
 
 def create_item(session):

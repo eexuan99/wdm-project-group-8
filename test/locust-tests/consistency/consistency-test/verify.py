@@ -17,11 +17,14 @@ logging.basicConfig(level=logging.INFO,
                     datefmt='%I:%M:%S')
 logger = logging.getLogger(__name__)
 
-with open(os.path.join('..', 'urls.json')) as f:
-    urls = json.load(f)
-    ORDER_URL = urls['ORDER_URL']
-    PAYMENT_URL = urls['PAYMENT_URL']
-    STOCK_URL = urls['STOCK_URL']
+# with open('urls.json') as f:
+#     urls = json.load(f)
+#     ORDER_URL = urls['ORDER_URL']
+#     PAYMENT_URL = urls['PAYMENT_URL']
+#     STOCK_URL = urls['STOCK_URL']
+STOCK_URL = os.environ['URL']
+ORDER_URL = os.environ['URL']
+PAYMENT_URL = os.environ['URL']
 
 
 async def get_and_get_field(session, url, field, key):
