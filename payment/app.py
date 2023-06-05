@@ -17,21 +17,25 @@ payment_db_conn = psycopg2.connect(
 
 payment_db_cursor = payment_db_conn.cursor()
 
+
 def close_db_connection():
     # redis_client.close()
     payment_db_cursor.close()
     payment_db_conn.close()
 
+
 atexit.register(close_db_connection)
 
 # Just a simple get all function so we can use this instead of pgadmin
+
+
 @app.get('/getall')
 def get_all():
     sql_statement = """SELECT * FROM payment;"""
     try:
         payment_db_cursor.execute(sql_statement)
         user = payment_db_cursor.fetchall()
-    except psycopg2.DatabaseError as error:
+    except psycopg2.Error as error:
         print(error)
         reconnect_db()
         payment_db_cursor.execute(sql_statement)
@@ -39,6 +43,8 @@ def get_all():
     return {"user": user}, 200
 
 # @app.get('/reconnectdb')
+
+
 def reconnect_db():
     global payment_db_conn
     global payment_db_cursor
@@ -62,14 +68,14 @@ def create_user():
         payment_db_cursor.execute(sql_statement, (0,))
         user_id = payment_db_cursor.fetchone()[0]
         payment_db_conn.commit()
-    except psycopg2.DatabaseError as error:
+    except psycopg2.Error as error:
         print(error)
         reconnect_db()
         payment_db_cursor.execute(sql_statement, (0,))
         user_id = payment_db_cursor.fetchone()[0]
         payment_db_conn.commit()
         # return {"error": "Error creating user"}, 400
-    
+
     return {"user_id": user_id}, 200
 
 
@@ -81,7 +87,7 @@ def find_user(user_id: str):
         user = payment_db_cursor.fetchone()
         if not user:
             return {"error": "User not found"}, 400
-    except psycopg2.DatabaseError as error:
+    except psycopg2.Error as error:
         print(error)
         reconnect_db()
         payment_db_cursor.execute(sql_statement, (user_id,))
@@ -102,14 +108,14 @@ def add_credit(user_id: str, amount: int):
         user = payment_db_cursor.fetchone()
         if not user:
             return {"error": "User not found"}, 400
-        
+
         # Adding credit
         sql_statement = """ UPDATE payment
                             SET credit = credit + %s
                             WHERE user_id = %s; """
         payment_db_cursor.execute(sql_statement, (amount, user_id))
         payment_db_conn.commit()
-    except psycopg2.DatabaseError as error:
+    except psycopg2.Error as error:
         print(error)
         reconnect_db()
         sql_statement = """ UPDATE payment
@@ -132,14 +138,14 @@ def remove_credit(user_id: str, order_id: str, amount: int):
         user = payment_db_cursor.fetchone()
         if not user:
             return {"error": "User not found"}, 400
-        
+
         # Subtracting credit
         sql_statement = """UPDATE payment
                             SET credit = credit - %s
                             WHERE user_id = %s;"""
         payment_db_cursor.execute(sql_statement, (amount, user_id))
         payment_db_conn.commit()
-    except psycopg2.DatabaseError as error:
+    except psycopg2.Error as error:
         print(error)
         reconnect_db()
         sql_statement = """UPDATE payment
@@ -158,24 +164,24 @@ def remove_credit(user_id: str, order_id: str, amount: int):
 #     sql_statement = """UPDATE order_table
 #                         SET status = 'cancelled'
 #                         WHERE user_id = %s AND order_id = %s;"""
-#     try: 
+#     try:
 #         order_db_cursor.execute(sql_statement, (user_id, order_id))
 #         order_db_conn.commit()
-#     except psycopg2.DatabaseError as error:
+#     except psycopg2.Error as error:
 #         print(error)
 #         return {"error": "Error cancelling payment"}, 400
 # =======
 
-### Should we have a column for cancelled?
+# Should we have a column for cancelled?
 @app.post('/cancel/<user_id>/<order_id>')
 def cancel_payment(user_id: str, order_id: str):
     sql_statement = """UPDATE order_table
                         SET status = 'cancelled'
                         WHERE user_id = %s AND order_id = %s;"""
-    try: 
+    try:
         payment_db_cursor.execute(sql_statement, (user_id, order_id))
         payment_db_conn.commit()
-    except psycopg2.DatabaseError as error:
+    except psycopg2.Error as error:
         print(error)
         reconnect_db()
         payment_db_cursor.execute(sql_statement, (user_id, order_id))
@@ -186,12 +192,12 @@ def cancel_payment(user_id: str, order_id: str):
 @app.post('/status/<user_id>/<order_id>')
 def payment_status(user_id: str, order_id: str):
     sql_statement = """SELECT status FROM order_table WHERE user_id = %s AND order_id = %s;"""
-    try: 
+    try:
         payment_db_cursor.execute(sql_statement, (user_id, order_id))
         status = payment_db_cursor.fetchone()
         if not status:
             return {"error": "Order not found"}, 400
-    except psycopg2.DatabaseError as error:
+    except psycopg2.Error as error:
         print(error)
         reconnect_db()
         payment_db_cursor.execute(sql_statement, (user_id, order_id))
@@ -199,6 +205,5 @@ def payment_status(user_id: str, order_id: str):
         if not status:
             return {"error": "Order not found"}, 400
         # return {"error": "Error cancelling payment"}, 400
-    
-    return {"Order status": status[0]}, 200
 
+    return {"Order status": status[0]}, 200
