@@ -49,7 +49,7 @@ for message in consumer:
     # TODO remove the if stament below:
     # if len(message.key['tr_num']) != 1:
     #     raise Exception(f"Unexpected: message.key['tr_num'] is not a list with only one element instead it has the following contents {message.key['tr_num']}")
-    tr_type, items = message.value['tr_type'], message.value['items'] 
+    tr_type, items = message.value['type'], message.value['items'] 
     print(f"the message values are tr_type= {tr_type} and items = {items}")
     partition = message.partition
 
@@ -131,11 +131,11 @@ for message in consumer:
             },
             value = {
                 'type': 'ssucc',
-                'tr_type': tr_type,
+                'type': tr_type,
                 'items': items
             }
         )
-        print(f"stock consumer has sent a message: at line 117 to Outcomes-topic the key is = {{'order_id': {order_id},'tr_num': {tr_num}}} and the value is = {{'type': 'ssucc','tr_type': {tr_type},'items': {items}}} ")
+        print(f"stock consumer has sent a message: at line 117 to Outcomes-topic the key is = {{'order_id': {order_id},'tr_num': {tr_num}}} and the value is = {{'type': 'ssucc','type': {tr_type},'items': {items}}} ")
     elif tr_type == 'sub':
         producer.send(
             'Outcomes-topic',
@@ -145,8 +145,8 @@ for message in consumer:
             },
             value = {
                 'type': 'sfail',
-                'tr_type': tr_type,
+                'type': tr_type,
                 'items': items
             }
         )
-        print(f"stock consumer has sent a message: at line 117 to Outcomes-topic the key is = {{'order_id': {order_id},'tr_num': {tr_num}}} and the value is = {{'type': 'ssucc','tr_type': {tr_type},'items': {items}}} ")
+        print(f"stock consumer has sent a message: at line 117 to Outcomes-topic the key is = {{'order_id': {order_id},'tr_num': {tr_num}}} and the value is = {{'type': 'ssucc','type': {tr_type},'items': {items}}} ")

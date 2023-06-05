@@ -48,7 +48,7 @@ for message in consumer:
     order_id, tr_num =  message.key['order_id'], message.key['tr_num']
     # if len(message.key['tr_num']) != 1:
     #     raise Exception(f"Unexpected: message.key['tr_num'] is not a list with only one element instead it has the following contents {message.key['tr_num']}")
-    tr_type, user_id, amnt = message.value['tr_type'], message.value['user_id'], message.value['amnt'] 
+    tr_type, user_id, amnt = message.value['type'], message.value['user_id'], message.value['amnt'] 
     partition = message.partition
 
     # for every partition we store the last offset we've seen from that transistion only if it wasn't a duplicate message, else we store -1

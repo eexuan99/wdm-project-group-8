@@ -331,12 +331,12 @@ def checkout(order_id):
             'Stock-topic',
             key= key,
             value = {
-                'tr_type': 'sub',
+                'type': 'sub',
                 'items': itemsList                
             }
         )
 
-        print(f"Successfully sent a message with key {key} to Stock-topic with value = {{'tr_type': 'sub','items': {itemsList}}}")
+        print(f"Successfully sent a message with key {key} to Stock-topic with value = {{'type': 'sub','items': {itemsList}}}")
 
         partition = murmur2(json.dumps(key).encode('ascii'))
         partition &= 0x7fffffff
@@ -359,13 +359,13 @@ def checkout(order_id):
             'Pay-topic',
             key= key,
             value = {
-                'tr_type': 'pay',
+                'type': 'pay',
                 'user_id': user_id,
                 'amnt': total_price
             }
         )
 
-        print(f"Successfully sent a message with key {key} to Pay-topic, value = {{'tr_type': 'pay','user_id': {user_id},'amnt': {total_price}}} ")
+        print(f"Successfully sent a message with key {key} to Pay-topic, value = {{'type': 'pay','user_id': {user_id},'amnt': {total_price}}} ")
 
         for message in consumer:
             if message.key != key or message.value['type'][:2] != 'tr':

@@ -52,7 +52,7 @@ It holds success or failure messages produced by pay consumer and stock consumer
                         'amnt': amnt))
 - payFail       (key: {'order_id':int, 'tr_num': int}, value: (
     'type': 'pfail',
-    'tr_type': tr_type,
+    'type': tr_type,
     'user_id': user_id,
     'amnt': amnt))
 - stockSuccess  (key: {'order_id':int, 'tr_num': int}, value: ('type':'ssucc', 'items' = [{'id':int, 'amnt':int}, ... ]))
