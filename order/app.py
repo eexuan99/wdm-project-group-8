@@ -52,6 +52,21 @@ def ping():
     else:
         return("Failed to connect to Redis")
 
+# @app.get('/reconnectdb')
+def reconnect_db():
+    global order_db_conn
+    global order_db_cursor
+    order_db_conn = psycopg2.connect(
+        host=os.environ['POSTGRES_HOST'],
+        database=os.environ['POSTGRES_DB'],
+        user=os.environ['POSTGRES_USER'],
+        password=os.environ['POSTGRES_PASSWORD'],
+        port=os.environ['POSTGRES_PORT'])
+    order_db_cursor = order_db_conn.cursor()
+    if not order_db_cursor:
+        reconnect_db()
+    return {"succes": "succes"}, 200
+
 
 # TODO: We are not currently checking if user exists.
 @app.post('/create/<user_id>')
@@ -75,6 +90,10 @@ def create_order(user_id):
         order_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
+        reconnect_db()
+        order_db_cursor.execute(sql_statement, (user_id, 'not_paid', [], 0))
+        order_id_of_new_row = order_db_cursor.fetchone()[0]
+        order_db_conn.commit()
         return {"error": "User id not found"}, 400
     
     return {"order_id": order_id_of_new_row}, 200
@@ -267,7 +286,13 @@ def find_order(order_id):
             return {"error": "order not found"}, 400
     except psycopg2.DatabaseError as error:
         print(error)
-        return {"error": "Order not found"}, 400
+        reconnect_db()
+        sql_statement = """SELECT * FROM order_table WHERE order_id = %s;"""
+        order_db_cursor.execute(sql_statement, (order_id,))
+        order = order_db_cursor.fetchone()
+        if not order:
+            return {"error": "order not found"}, 400
+        # return {"error": "Order not found"}, 400
     
     return {"order_id": order[0], "user_id": order[1], "paid": order[2],
             "items": parse_items(order[3]), "total_price": order[4]}, 200
@@ -403,7 +428,10 @@ def cancel_payment(user_id: int, order_id: int):
         order_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
-        return {"error": "Error cancelling payment"}, 400
+        reconnect_db()
+        order_db_cursor.execute(sql_statement, (user_id, order_id))
+        order_db_conn.commit()
+        # return {"error": "Error cancelling payment"}, 400
     
     return {"success": f"Order {order_id} cancelled"}, 200
 

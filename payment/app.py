@@ -28,9 +28,31 @@ atexit.register(close_db_connection)
 @app.get('/getall')
 def get_all():
     sql_statement = """SELECT * FROM payment;"""
-    payment_db_cursor.execute(sql_statement)
-    user = payment_db_cursor.fetchall()
+    try:
+        payment_db_cursor.execute(sql_statement)
+        user = payment_db_cursor.fetchall()
+    except psycopg2.DatabaseError as error:
+        print(error)
+        reconnect_db()
+        payment_db_cursor.execute(sql_statement)
+        user = payment_db_cursor.fetchall()
     return {"user": user}, 200
+
+# @app.get('/reconnectdb')
+def reconnect_db():
+    global payment_db_conn
+    global payment_db_cursor
+    payment_db_conn = psycopg2.connect(
+        host=os.environ['POSTGRES_HOST'],
+        database=os.environ['POSTGRES_DB'],
+        user=os.environ['POSTGRES_USER'],
+        password=os.environ['POSTGRES_PASSWORD'],
+        port=os.environ['POSTGRES_PORT'])
+    payment_db_cursor = payment_db_conn.cursor()
+    if not payment_db_cursor:
+        reconnect_db()
+    return {"succes": "succes"}, 200
+
 
 @app.post('/create_user')
 def create_user():
@@ -42,7 +64,11 @@ def create_user():
         payment_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
-        return {"error": "Error creating user"}, 400
+        reconnect_db()
+        payment_db_cursor.execute(sql_statement, (0,))
+        user_id = payment_db_cursor.fetchone()[0]
+        payment_db_conn.commit()
+        # return {"error": "Error creating user"}, 400
     
     return {"user_id": user_id}, 200
 
@@ -57,7 +83,12 @@ def find_user(user_id: str):
             return {"error": "User not found"}, 400
     except psycopg2.DatabaseError as error:
         print(error)
-        return {"error": "Error finding user"}, 400
+        reconnect_db()
+        payment_db_cursor.execute(sql_statement, (user_id,))
+        user = payment_db_cursor.fetchone()
+        if not user:
+            return {"error": "User not found"}, 400
+        # return {"error": "Error finding user"}, 400
 
     return {"user_id": user[0], "credit": user[1]}, 200
 
@@ -80,7 +111,13 @@ def add_credit(user_id: str, amount: int):
         payment_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
-        return {"error": "Error finding user or adding credit"}, 400
+        reconnect_db()
+        sql_statement = """ UPDATE payment
+                            SET credit = credit + %s
+                            WHERE user_id = %s; """
+        payment_db_cursor.execute(sql_statement, (amount, user_id))
+        payment_db_conn.commit()
+        # return {"error": "Error finding user or adding credit"}, 400
 
     return {"success": f"Added {amount} of credit to user {user_id}"}, 200
 
@@ -104,7 +141,13 @@ def remove_credit(user_id: str, order_id: str, amount: int):
         payment_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
-        return {"error": "Error finding user or adding credit"}, 400
+        reconnect_db()
+        sql_statement = """UPDATE payment
+                            SET credit = credit - %s
+                            WHERE user_id = %s;"""
+        payment_db_cursor.execute(sql_statement, (amount, user_id))
+        payment_db_conn.commit()
+        # return {"error": "Error finding user or adding credit"}, 400
 
     return {"success": f"Subtracted {amount} of credit to user {user_id}"}, 200
 
@@ -134,7 +177,10 @@ def cancel_payment(user_id: str, order_id: str):
         payment_db_conn.commit()
     except psycopg2.DatabaseError as error:
         print(error)
-        return {"error": "Error cancelling payment"}, 400
+        reconnect_db()
+        payment_db_cursor.execute(sql_statement, (user_id, order_id))
+        payment_db_conn.commit()
+        # return {"error": "Error cancelling payment"}, 400
 
 
 @app.post('/status/<user_id>/<order_id>')
@@ -147,7 +193,12 @@ def payment_status(user_id: str, order_id: str):
             return {"error": "Order not found"}, 400
     except psycopg2.DatabaseError as error:
         print(error)
-        return {"error": "Error cancelling payment"}, 400
+        reconnect_db()
+        payment_db_cursor.execute(sql_statement, (user_id, order_id))
+        status = payment_db_cursor.fetchone()
+        if not status:
+            return {"error": "Order not found"}, 400
+        # return {"error": "Error cancelling payment"}, 400
     
     return {"Order status": status[0]}, 200
 
