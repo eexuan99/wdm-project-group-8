@@ -7,6 +7,12 @@ To deploy the services in a kuberneters cluster using minikube, follow the instr
 
 # todo: Add link to kafka documentation and add a the drawio image s png to readme
 # todo add instructions for minikube delete
+
+### Project design
+Implementation of a checkout system that follows the design pattern SAGA's and is idempotent, ensuring that some operations should achieve the same result each time regardless of the number of times the operation is carried out.
+The project uses Apache Kafka to guarantee eventual consistency for checking out items. Apache Kafka helps to handle data streams, its scalable, fault tolerant and a durable messaging system. Furthermore, we use Redis as a cache 
+to store the price of items after the price is requested from the stock service. 
+
 ### Project structure
 
 * [`env`](env)
