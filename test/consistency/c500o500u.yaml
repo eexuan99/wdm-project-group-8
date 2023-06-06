@@ -1,7 +1,7 @@
 apiVersion: "apps/v1"
 kind: "Deployment"
 metadata:
-  name: consistenct-test
+  name: c500o5oou-test
   labels:
     name: consistency
 spec:
