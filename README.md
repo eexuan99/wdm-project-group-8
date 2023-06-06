@@ -1,4 +1,6 @@
-# Web-scale Data Management Project Template
+# Web-scale Data Management Project
+
+Click here to see our group's [declaration of honour](DeclarationOfHonour.md).
 
 ###
 To deploy the services in a kuberneters cluster using minikube, follow the instructions in the `deploy-charts-and-start-minikube.sh` file.

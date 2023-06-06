@@ -1,0 +1,22 @@
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: test-microservices
+  labels:
+    name: test-microservices
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: test-microservices
+  template:
+    metadata:
+      labels:
+        app: test-microservices
+    spec:
+      containers:
+        - name: test-microservices
+          image: bryanyhe/wsdm:test-microservices
+          env:
+            - name: URL
+              value: http://192.168.49.2
