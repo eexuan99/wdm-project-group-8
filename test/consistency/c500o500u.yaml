@@ -1,0 +1,22 @@
+apiVersion: "apps/v1"
+kind: "Deployment"
+metadata:
+  name: consistenct-test
+  labels:
+    name: consistency
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consistency
+  template:
+    metadata:
+      labels:
+        app: consistency
+    spec:
+      containers:
+        - name: consistency
+          image: bryanyhe/wsdm:c500o500u
+          env:
+            - name: URL
+              value: http://192.168.49.2
