@@ -1,12 +1,23 @@
 version: "3"
 services:
-
   gateway:
     image: nginx:latest
     volumes:
       - ./gateway_nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
       - "8000:80"
+    networks:
+      - net
+
+  redis_client:
+    image: redis:6.2-alpine
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - cache:/data
+    networks:
+      - net
 
   order-service:
     build: ./order
@@ -17,11 +28,10 @@ services:
     env_file:
       - env/order_redis.env
     depends_on:
-      - central-db
-
-  order-db:
-    image: redis:latest
-    command: redis-server --requirepass redis --maxmemory 512mb
+      - order-db
+      - redis_client
+    networks:
+      - net
 
   stock-service:
     build: ./stock
@@ -30,11 +40,9 @@ services:
     env_file:
       - env/stock_redis.env
     depends_on:
-      - central-db
-
-  stock-db:
-    image: redis:latest
-    command: redis-server --requirepass redis --maxmemory 512mb
+      - stock-db
+    networks:
+      - net
 
   payment-service:
     build: ./payment
@@ -43,15 +51,36 @@ services:
     env_file:
       - env/payment_redis.env
     depends_on:
-      - central-db
-      
-  payment-db:
-    image: redis:latest
-    command: redis-server --requirepass redis --maxmemory 512mb
+      - payment-db
+    networks:
+      - net
 
-  central-db:
-    build: ./central_db
-    image: central_db:latest
+  order-db:
+    # image: redis:latest
+    # command: redis-server --requirepass redis --maxmemory 512mb
+    build: ./order/order_db
+    image: order-db:latest
+    networks:
+      - net
+
+  stock-db:
+    # image: redis:latest
+    # command: redis-server --requirepass redis --maxmemory 512mb
+    build: ./stock/stock_db
+    image: stock-db:latest
+    networks:
+      - net
+
+  payment-db:
+    # image: redis:latest
+    # command: redis-server --requirepass redis --maxmemory 512mb
+    build: ./payment/payment_db
+    image: payment:latest
+    networks:
+      - net
+  # central-db:
+  #   build: ./central_db
+  #   image: central_db:latest
 
   pgadmin:
     container_name: pgadmin4_container
@@ -62,3 +91,42 @@ services:
       PGADMIN_DEFAULT_PASSWORD: root
     ports:
       - "5050:80"
+    networks:
+      - net
+
+  kafka-pod-service:
+    build: ./kafka-pod
+    image: kafkapod:latest
+    networks:
+      - net
+
+#  zookeeper:
+#    image: confluentinc/cp-zookeeper:latest
+#    environment:
+#      ZOOKEEPER_CLIENT_PORT: 2181
+#      ZOOKEEPER_TICK_TIME: 2000
+#    ports:
+#      - 22181:2181
+#
+#  kafka:
+#    image: confluentinc/cp-kafka:latest
+#    depends_on:
+#      - zookeeper
+#    ports:
+#      - 29092:29092
+#    environment:
+#      KAFKA_BROKER_ID: 1
+#      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+#      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+#      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+#      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+#      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+networks:
+  net:
+    driver: bridge
+
+volumes:
+  cache:
+    driver: local
+  gateway:

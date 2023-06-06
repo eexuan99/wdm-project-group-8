@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-consumer-service
+spec:
+  type: ClusterIP
+  selector:
+    component: user-consumer
+  ports:
+    - port: 5000
+      name: http
+      targetPort: 5000
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-consumer-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: useruser-consumer
+  template:
+    metadata:
+      labels:
+        component: useruser-consumer
+    spec:
+      containers:
+        - name: user-consumer
+          image: user:latest
+          imagePullPolicy: Never
+          resources:
+            limits:
+              memory: "300Mi" #"1Gi" #100Mi
+              # cpu: "1"
+            requests:
+              memory: "300Mi" #"1Gi"
+              # cpu: "1"
+          command: ["gunicorn"]
+          args: ["-b", "0.0.0.0:5000", "consumer:app"]
+          ports:
+            - containerPort: 5000
+          env:
+            - name: REDIS_HOST
+              value: redis-master
+            - name: REDIS_PORT
+              value: '6379'
+            - name: REDIS_PASSWORD
+              value: "redis"
+            - name: REDIS_DB
+              value: "0"
+            - name: POSTGRES_HOST
+              value: payment-db
+            - name: POSTGRES_PASSWORD
+              value: "secret"
+            - name: POSTGRES_USER
+              value: "username"
+            - name: POSTGRES_DB
+              value: "database"
+            - name: POSTGRES_PORT
+              value: '5432'

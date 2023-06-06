@@ -1,0 +1,26 @@
+# fullnameOverride: kafka
+# numPartitions: 3
+provisioning:
+  enabled: true 
+  # numPartitions: 100
+  # replicationFactor: 100
+  topics: 
+    - name: Stock-topic
+      partitions: 100
+      replicationFactor: 3
+    - name: Pay-topic
+      partitions: 100
+      replicationFactor: 3
+    - name: Outc-offs-topic
+      partitions: 100
+      replicationFactor: 3
+    - name: Outcomes-topic
+      partitions: 100
+      replicationFactor: 3
+kraft:
+  enabled: false
+zookeeper:
+  enabled: true 
+replicaCount: 3
+# externalZookeeper: 
+  # servers: zookeeper.default.svc.cluster.local #zookeeper

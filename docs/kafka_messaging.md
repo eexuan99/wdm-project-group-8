@@ -1,6 +1,6 @@
 # Topics
 
-## Pay
+## Pay-topic
 #### Description:
 It will hold all messages needed to checkout or rollback a transaction pay
 
@@ -12,10 +12,10 @@ It will hold all messages needed to checkout or rollback a transaction pay
 - pay consumer: deals with committing changes in durable storage
 
 #### Messages:
-- pay (key: "orderid_tr#", value: ('pay', amnt))
-- cancelPayment (key: "orderid_tr#", value: ('cancel_pay', amnt))
+- pay (key: {'order_id':int, 'tr_num': int}, value: ('type':'pay', 'amnt':int))
+- cancelPayment (key: {'order_id':int, 'tr_num': int}, value: ('type':'can', 'amnt':int))
 
-## Stock
+## Stock-topic
 #### Description:
 It will hold all messages needed decrement or increment all quantities needed for a transaction. Per transaction there are at most two messages:
     - one to decrement quantities for all items in an order
@@ -29,53 +29,49 @@ It will hold all messages needed decrement or increment all quantities needed fo
 - stock consumer
 
 #### Messages:
-- decrement (key: "orderid_tr#", value: ('decrement', [(item, amnt), ... ]))
-- increment (key: "orderid_tr#", value: ('increment', [(item, amnt), ... ]))
+- decrement (key: {'order_id':int, 'tr_num': int}, value: ('type':'sub', 'items' = [{'id':int, 'amnt':int}, ... ]))
+- increment (key: {'order_id':int, 'tr_num': int}, value: ('type':'add', 'items' = [{'id':int, 'amnt':int}, ... ]))
 
-## Outcome P&S (ops)
+## Outcomes-topic
 #### Description:
-It holds success or failure messages produced by pay consumer and stock consumer relative to their changes in db
+It holds success or failure messages produced by pay consumer and stock consumer relative to their changes in db, as well as messages from order consumer relative to the outcome of a transaction
 
 #### Producers:
 - pay consumer
 - stock consumer
-
-#### Consumers:
-- order consumer
-
-#### Messages:
-- paySuccess    (key: "orderid_tr#", value: ('psuccess', amnt))
-- payFail       (key: "orderid_tr#", value: ('pfail', amnt))
-- stockSuccess  (key: "orderid_tr#", value: ('ssuccess', [(item, amnt), ... ]))
-- stockFail     (key: "orderid_tr#", value: ('sfail', [(item, amnt), ... ]))
-
-
-## Outcome checkout (oc)
-#### Description:
-It holds messages relative to the success or failure of transactions as a whole
-
-#### Producers:
 - order consumer
 
 #### Consumers:
+- order consumer
 - order/checkout
 
 #### Messages:
-- success (key: "orderid_tr#", value: 'success')
-- fail (key: "orderid_tr#", value: 'fail')
+- paySuccess    (key: {'order_id':int, 'tr_num': int}, value: (
+                        'type': 'psucc',
+                        'user_id': user_id,
+                        'amnt': amnt))
+- payFail       (key: {'order_id':int, 'tr_num': int}, value: (
+    'type': 'pfail',
+    'tr_type': tr_type,
+    'user_id': user_id,
+    'amnt': amnt))
+- stockSuccess  (key: {'order_id':int, 'tr_num': int}, value: ('type':'ssucc', 'items' = [{'id':int, 'amnt':int}, ... ]))
+- stockFail     (key: {'order_id':int, 'tr_num': int}, value: ('type':'sfail', 'items' = [{'id':int, 'amnt':int}, ... ]))
+- transaction success (key: {'order_id':int, 'tr_num': int}, value: ('type':'trsucc'))
+- transaction success (key: {'order_id':int, 'tr_num': int}, value: ('type':'trfail'))
 
-## Offsets Outcome P&S (oops)
+## Outc-offs-topic
 #### Description:
 Per partition it holds the offset of the start of the oldest transaction not fully processed. Order consumers have to:
-- read messages from **ops**
+- read messages from **Outcomes**
 - process the message and commit to kafka (increment internal offset)
 - Keep tract of all the transaction ids and the offset of their first message (an outcome from pay or stock)
 - Once the oldest transaction is done (we received both messages from stock and pay)
     - no need to keep track of that transaction any more
-    - push to Offset **ops** the next oldest (smallest) offset
+    - push to Offset **Outcomes** the next oldest (smallest) offset
 - If a transaction that is not the oldest is done: just lose track of it
 
-When first initializing and after rebalancing, consumers have to fetch the latest offset posted in oops, and read messages until they reach the committed offset in **ops**, **without** processing them, just in order to rebuild the lost state. When latest committed offset is reached, then they have to start processing messages, sending response messages like normal
+When first reading a message of a new partition, and after reading old partition after a few messages, consumers have to fetch the latest offset posted in Outc-offs-topic, and read messages until they reach the committed offset in **Outcomes**, **without** processing them, just in order to rebuild the lost state. When latest committed offset is reached, then they have to start processing messages, sending response messages like normal
 #### Producers:
 - order consumer
 
@@ -90,23 +86,23 @@ When first initializing and after rebalancing, consumers have to fetch the lates
 
 ## order/checkout
 #### Topics:
-- **stock**: producer
-- **pay**: producer
-- **oc**: consumer
+- **Stock-topic**: producer
+- **Pay-topic**: producer
+- **Outcomes**: consumer
 
 ## order consumer
 #### Topics:
-- **ops**: consumer
+- **Outcomes**: consumer
 - **oc**: producer
-- **oops**: producer and consumer
+- **Outc-offs-topic**: producer and consumer
 
 ## pay consumer
-- **pay**: consumer
-- **ops**: producer
+- **Pay-topic**: consumer
+- **Outcomes**: producer
 
-## stock consumer
-- **stock**: consumer
-- **ops**: producer
+## Stock-topic consumer
+- **Stock-topic**: consumer
+- **Outcomes**: producer
 
 # Important notes
 
@@ -114,7 +110,7 @@ When first initializing and after rebalancing, consumers have to fetch the lates
     | OrderId | user_id | paid | items | amount | tr# |
     |-|-|-|-|-|-| 
 
-- For better throughput we can set autocommit to true for kafka consumers. This ensures that messages are read at least once in all partitions, but not that they are read exactly once. To deal with this we can insert the orderid_tr# along with the meaning of the message (pay/decrement vs rollback). This means that we need to create the following table in stock and payment dbs:
+- For better throughput we can set autocommit to true for kafka consumers. This ensures that messages are read at least once in all partitions, but not that they are read exactly once. To deal with this we can insert the orderid_tr# along with the meaning of the message (pay/decrement vs rollback). This means that we need to create the following table in Stock-topic and payment dbs:
 
     | Orderid | tr# | Was Rollback|
     |-|-|-|

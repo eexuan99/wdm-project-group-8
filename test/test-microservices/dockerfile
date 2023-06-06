@@ -1,0 +1,14 @@
+# Start with a base image Python 3.9.12 Debian 11 (bullseye) slim
+FROM python:3.9.12-slim-bullseye
+
+# Add the external tasks directory into /tasks
+ADD python-unittest /python-unittest/
+# ADD locust-tasks/tasks.py ./
+
+# Install the required dependencies via pip
+RUN pip install -r /python-unittest/requirements.txt
+
+# ENV URL=http://192.168.49.2
+
+CMD [ "python", "./python-unittest/test_microservices.py" ]
+ 
