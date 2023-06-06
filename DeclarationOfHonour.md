@@ -12,6 +12,13 @@ Bryan He:
 - helped with writing the prepared SQL statements needed to deal with adding and removing items from orders.
 
 Pierluigi Negro
+- Designing the (what topics to create, which consumers to create, which producers) [see here](docs/kafka_messaging.md)  or [here](docs/kafka_messaging.pdf))
+- Implemented the logic for ...
+- Implemented the logic for idempotency ()
+- Implemented the code for Kafka consumers of the 3 services (stock, order, payment)
+- debugging the kafka consumers
+- documenting the kafka topics
+- etc (you can explain better and in more detail Pierluigi)
 
 Ee Xuan Tan
 - Worked on the transactional protocol (payment service)
