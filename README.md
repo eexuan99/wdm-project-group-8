@@ -3,31 +3,39 @@
 Click here to see our group's [declaration of honour](DeclarationOfHonour.md).
 
 ###
-To deploy the services in a kuberneters cluster using minikube, follow the instructions in the `deploy-charts-and-start-minikube.sh` file.
+To deploy the services in a kuberneters cluster using minikube, follow the instructions in the [`deploy-charts-and-start-minikube.sh`](deploy-charts-and-start-minikube.sh) file.
 
-
+# todo: Add link to kafka documentation and add a the drawio image s png to readme
+# todo add instructions for minikube delete
 ### Project structure
 
-* `env`
-    Folder containing the Redis env variables for the docker-compose deployment
+* [`env`](env)
+    Folder containing the Redis and PostgreSQL env variables used for the docker-compose deployment (not used for the minikube deployment)
     
-* `helm-config` 
-   Helm chart values for Redis and ingress-nginx
+* [`helm-config`](helm-config) 
+   Helm chart values for:
+   - [Redis database](helm-config/redis-helm-values.yaml) (used by order service to store prices)
+   - [kafka broker servers](helm-config/kafka.yaml)
+   - [PostgreSQL database for order service](helm-config/order-db.yaml)
+   - [PostgreSQL database for payment service](helm-config/payment-db.yaml)
+   - [PostgreSQL database for stock service](helm-config/stock-db.yaml)
         
-* `k8s`
-    Folder containing the kubernetes deployments, apps and services for the ingress, order, payment and stock services.
+* [`k8s`](k8s)
+    Folder containing the kubernetes deployments, apps and services for the [ingress](k8s/ingress-service.yaml), [order](k8s/order-app.yaml), [payment](k8s/user-app.yaml) and [stock](k8s/stock-app.yaml) services. Moreover, the consumers of each of the three services are also found here.
     
-* `order`
-    Folder containing the order application logic and dockerfile. 
+* [`order`](order)
+    Folder containing the order application logic for the [order app](order/app.py) which handles the api requests and the [order consumer](order/consumer.py) which produces and consumes kafka messages when orders are checked out. The dockerfile is also found here (used in minikube deployment). There is also an order_db subfolder here, which is used for setting up and configuring the order_db for local docker development (not used for k8s deployment). 
     
-* `payment`
-    Folder containing the payment application logic and dockerfile. 
+* [`payment`](payment)
+    Folder containing the order application logic for the [payment app](payment/app.py) which handles the api requests and the [payment consumer](payment/consumer.py) which produces and consumes kafka messages when the credit balance of users are decreased or rolled back. The dockerfile is also found here (used in minikube deployment). There is also an payment_db subfolder here, which is used for setting up and configuring the payment_db for local docker development (not used for k8s deployment).
 
-* `stock`
-    Folder containing the stock application logic and dockerfile. 
+* [`stock`](stock)
+    Folder containing the order application logic for the [stock app](stock/app.py) which handles the api requests and the [stock consumer](stock/consumer.py) which produces and consumes kafka messages when the stock of an item is decreased or rolled back. The dockerfile is also found here (used in minikube deployment). There is also an stock_db subfolder here, which is used for setting up and configuring the stock_db for local docker development (not used for k8s deployment).
+* [`test`](test)
+    * [test-microservices](test/test-microservices/) From the project template we have received this folder containing some basic correctness tests for the entire system. (Feel free to enhance them). Because we had difficulty with deploying kafka in docker, but managed in minikube, we have decided to turn the provided python test scripts into a docker image which is then used by [test-microservices.yaml](test/test-microservices/test-microservice.yaml) to test for consistency. To run this test use the kubectl apply command to apply test-microservices.yaml to the cluster. You might need to replace the value of the `URL` environment variable (at line 22) in this file depending on the ip address that the deployed ingress (AKA API gateway). You can find correct value by running `kubectl get ingress`, in the output you should find the ip address under the column [todo]. [todo, tell reader to check the corresponding log of this pod to inspect whether the test has passed or not]
+    * [stress-test-k8s](test/stress-test-k8s/) This folder contains the code provided by [the benchmark repository](https://github.com/delftdata/wdm-project-benchmark). The script from that repository did not work for us out of the box. To make it work for us, we had to make the following modification to [run.sh](test/stress-test-k8s/docker-image/locust-tasks/run.sh) (had to fix there were issues with the constructed command) and [tasks.py](test/stress-test-k8s/docker-image/locust-tasks/tasks.py). A docker image was created from these scripts and pushed to a public docker registry, this image is the used by the 3 kubenetes yaml files in the [kubernetes-config file](test/stress-test-k8s/kubernetes-config/). [todo tell reader to first deploy microservices and ingress and consumers and dbs and kafka etc + check if the ip adress is correct] After deploying you can visit locust UI at [localhost:8089](http://localhost:8089) to start the locust script.
+    * [consistency](test/consistency/) From the consistency test of [the benchmark repository](https://github.com/delftdata/wdm-project-benchmark), we made a kubernetes deployment which runs those test. To run this test in minikube, apply the [consistency.yaml](test/consistency/consistency.yaml) file to the cluster using the `kubectl apply` command. Inspect the results by checking the logs of the corresponding pod: kubectl get pods to copy the name of the pod from the column (podname+....) then kubectl logs <paste the pod name you copied>. Just like the other steps make sure that the ip address is the same as the ip of you ingress
 
-* `test`
-    Folder containing some basic correctness tests for the entire system. (Feel free to enhance them)
 
 ### Deployment types:
 
