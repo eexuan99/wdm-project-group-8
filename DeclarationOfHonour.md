@@ -1,4 +1,8 @@
-# Who did what 
+#Declaration of Honour
+---
+Link to our repository: https://github.com/eexuan99/wdm-project-group-8
+
+## Who did what 
 
 Bryan He:
 - k8s deployment scripts:
