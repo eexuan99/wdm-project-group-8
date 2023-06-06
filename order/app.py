@@ -108,7 +108,7 @@ def create_order(user_id):
         order_db_cursor.execute(sql_statement, (user_id, 'not_paid', [], 0))
         order_id_of_new_row = order_db_cursor.fetchone()[0]
         order_db_conn.commit()
-        return {"error": "User id not found"}, 400
+
 
     return {"order_id": order_id_of_new_row}, 200
 
@@ -416,12 +416,15 @@ def checkout(order_id):
             f"Successfully sent a message with key {key} to Pay-topic, value = {{'tr_type': 'pay','user_id': {user_id},'amnt': {total_price}}} ")
 
         for message in consumer:
-            if message.key != key or message.value['type'][:2] != 'tr':
+            if message.key != key or message.value['type'][1:] != 'succ':
                 continue
+            
 
-            if message.value['type'] == 'trfail':
+            if message.value['type'][-4:] == 'fail':
                 return {"fail": f"Unable to check-out order {order_id}: not enough credit or stock"}, 400
 
+            if message.value['type'][:2] != 'tr':
+                continue
             return {"success": f"Order {order_id} has been paid"}, 200
     except psycopg2.Error as error:
         print(error)
