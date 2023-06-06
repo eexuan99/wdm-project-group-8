@@ -14,6 +14,14 @@ Bryan He:
 Pierluigi Negro
 
 Ee Xuan Tan
+- Worked on the transactional protocol (payment service)
+    - Implemented all the requests
+- Worked on the addItem and removeItem in the order service 
+    - Set up Redis as a cache for the order microservice to save item prices from the stock service
+    - Created a request from one service to the other service to retrieve item prices
+    - Updated the SQL statements to update total order price and items.
+- Looked into setting up Apache Kafka on Docker
+- Worked on the presentation
 
 Nicky Ju
 
