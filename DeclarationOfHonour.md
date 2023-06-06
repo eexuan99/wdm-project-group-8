@@ -24,5 +24,11 @@ Ee Xuan Tan
 - Worked on the presentation
 
 Nicky Ju
+- Worked on the transactional protocol (stock service)
+    - Debugged (and finished) all three services in the first phase
+- Worked on the microservices when the databases were split for the second phase and made sure they still worked
+- Worked on the restarting of the database in case of failure
+    - And made sure the last request is not lost during the process
+- Worked on the presentation
 
 # Issues that arose
