@@ -1,4 +1,8 @@
-# Who did what 
+#Declaration of Honour
+---
+Link to our repository: https://github.com/eexuan99/wdm-project-group-8
+
+## Who did what 
 
 Bryan He:
 - k8s deployment scripts:
@@ -12,13 +16,12 @@ Bryan He:
 - helped with writing the prepared SQL statements needed to deal with adding and removing items from orders.
 
 Pierluigi Negro
-- Designing the (what topics to create, which consumers to create, which producers) [see here](docs/kafka_messaging.md)  or [here](docs/kafka_messaging.pdf))
-- Implemented the logic for ...
-- Implemented the logic for idempotency ()
-- Implemented the code for Kafka consumers of the 3 services (stock, order, payment)
+- Designing the logic for the use of kafka as a mean to achieve fault-tolerant eventual consistency
+- Designed the logic for idempotency (working with at least once kafka delivery)
+- Implemented kafka logic
 - debugging the kafka consumers
 - documenting the kafka topics
-- etc (you can explain better and in more detail Pierluigi)
+- testing settings for configurations of the system
 
 Ee Xuan Tan
 - Worked on the transactional protocol (payment service)
@@ -39,3 +42,5 @@ Nicky Ju
 - Worked on the presentation
 
 # Issues that arose
+
+Since we did not manage to try our program on a cloud environment, working with different computers and different operative systems has been sometimes and issue, as different settings and specifications sometimes impacted the success of the programs. The main issue has been time, as deadlines for other courses and the general lack of time did not allow us to test our system to a full extent.
