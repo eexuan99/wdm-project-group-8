@@ -255,19 +255,51 @@ def remove_item(order_id, item_id):
         # NOTE:TODO we do not yet check whether
         # an item exists in the items[] array / shopping cart when we delete it
 
+        # update_order_items_query_remove = sql.SQL("""
+        #     UPDATE order_table
+        #     SET items = (
+        #         SELECT array_remove(
+        #             array_agg(
+        #                 CASE
+        #                     WHEN item.item_id = %s AND item.amount > 1 THEN ROW(item.item_id, item.amount - 1, item.unit_price)::items
+        #                     WHEN item.item_id = %s AND item.amount = 1 THEN NULL
+        #                     ELSE item
+        #                 END
+        #             ),
+        #             NULL
+        #         )
+        #         FROM UNNEST(items) AS item
+        #     )
+        #     WHERE order_id = %s;
+        # """)
+
+
         update_order_items_query_remove = sql.SQL("""
             UPDATE order_table
             SET items = (
-                SELECT array_remove(
-                    array_agg(
-                        CASE
-                            WHEN item.item_id = %s AND item.amount > 1 THEN ROW(item.item_id, item.amount - 1, item.unit_price)::items
-                            WHEN item.item_id = %s AND item.amount = 1 THEN NULL
-                            ELSE item
-                        END
-                    ),
-                    NULL
-                )
+                SELECT CASE
+                    WHEN array_remove(
+                            array_agg(
+                                CASE
+                                    WHEN item.item_id = %s AND item.amount > 1 THEN ROW(item.item_id, item.amount - 1, item.unit_price)::items
+                                    WHEN item.item_id = %s AND item.amount = 1 THEN NULL
+                                    ELSE item
+                                END
+                            ),
+                            NULL
+                        ) IS NULL
+                    THEN %s::items[]
+                    ELSE array_remove(
+                            array_agg(
+                                CASE
+                                    WHEN item.item_id = %s AND item.amount > 1 THEN ROW(item.item_id, item.amount - 1, item.unit_price)::items
+                                    WHEN item.item_id = %s AND item.amount = 1 THEN NULL
+                                    ELSE item
+                                END
+                            ),
+                            NULL
+                        )
+                END
                 FROM UNNEST(items) AS item
             )
             WHERE order_id = %s;
@@ -283,8 +315,10 @@ def remove_item(order_id, item_id):
                 )
                 WHERE order_id = %s;
             """)
+        # order_db_cursor.execute(
+        #     update_order_items_query_remove, (item_id, item_id, order_id))
         order_db_cursor.execute(
-            update_order_items_query_remove, (item_id, item_id, order_id))
+            update_order_items_query_remove, (item_id, item_id, [], item_id, item_id,  order_id))
         order_db_cursor.execute(update_order_total_price_query, (order_id,))
         order_db_conn.commit()
     except psycopg2.Error as error:
