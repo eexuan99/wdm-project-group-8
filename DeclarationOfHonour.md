@@ -44,3 +44,4 @@ Nicky Ju
 # Issues that arose
 
 Since we did not manage to try our program on a cloud environment, working with different computers and different operative systems has been sometimes and issue, as different settings and specifications sometimes impacted the success of the programs. The main issue has been time, as deadlines for other courses and the general lack of time did not allow us to test our system to a full extent.
+We speculate that hardware limitations (memory and cpus) of our laptops, cause a higher latency and errors to occur when running the consistency test. 
