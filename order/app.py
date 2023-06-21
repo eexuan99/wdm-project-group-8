@@ -42,6 +42,7 @@ atexit.register(close_db_connection)
 
 @app.get('/getall')
 def get_all():
+    print('Inside get all')
     sql_statement = """SELECT * FROM order_table;"""
     try:
         order_db_cursor.execute(sql_statement)
@@ -419,9 +420,9 @@ def checkout(order_id):
         print(
             f"Successfully sent a message with key {key} to Stock-topic with value = {{'tr_type': 'sub','items': {itemsList}}}")
 
-        partition = murmur2(json.dumps(key).encode('ascii'))
-        partition &= 0x7fffffff
-        partition %= 100
+        partitionNumber = murmur2(json.dumps(key).encode('ascii'))
+        partitionNumber &= 0x7fffffff
+        partitionNumber %= 100
 
         consumer = KafkaConsumer(
             bootstrap_servers='kafka.default.svc.cluster.local:9092',
@@ -429,10 +430,12 @@ def checkout(order_id):
             key_deserializer=lambda v: json.loads(v.decode('ascii')),
             auto_offset_reset='latest',
         )
-        consumer.assign([TopicPartition('Outcomes-topic', partition)])
-
+        consumer.assign([TopicPartition('Outcomes-topic', partitionNumber)])
+        topicPartition = TopicPartition('Outcomes-topic', partitionNumber)
+    
+        offset = consumer.end_offsets([topicPartition])[topicPartition]
         print(
-            f'consumer created successfully at line 323 and it is assigned to the Outcomes-topic at partition {partition}')
+            f'consumer created successfully at line 323 and it is assigned to the Outcomes-topic at partition {partitionNumber}')
 
         print(f'Now attempting to send a message with key {key} to Pay-topic')
 
@@ -449,10 +452,13 @@ def checkout(order_id):
         print(
             f"Successfully sent a message with key {key} to Pay-topic, value = {{'tr_type': 'pay','user_id': {user_id},'amnt': {total_price}}} ")
 
+        print("trying to seek partition")
+        consumer.seek(topicPartition, offset)
+        print(f'consumer is now at offset {offset} at partition {partitionNumber}')
         for message in consumer:
-            if message.key != key or message.value['type'][1:] != 'succ':
+            print(f"message.key = {message.key}, message.value = {message.value}")
+            if message.key != key:
                 continue
-            
 
             if message.value['type'][-4:] == 'fail':
                 return {"fail": f"Unable to check-out order {order_id}: not enough credit or stock"}, 400
